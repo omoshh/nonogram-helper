@@ -69,7 +69,7 @@ async function handle(req: VisionRequest): Promise<{ msg: VisionResponse; transf
     case 'mesh': {
       const s = session(req.sessionId);
       // meshFromCorners throws on degenerate corners; the caller sees a plain rejection.
-      return { msg: { id, ok: true, kind: 'mesh', geometry: meshFromCorners(s.upright, req.corners, req.size) } };
+      return { msg: { id, ok: true, kind: 'mesh', geometry: { ...meshFromCorners(s.upright, req.corners, req.size), rotation: s.k } } };
     }
     case 'rotate': {
       const s = session(req.sessionId);
