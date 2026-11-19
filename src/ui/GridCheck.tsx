@@ -9,6 +9,8 @@ type Known = { width: number; height: number; colClueDepth: number; rowClueDepth
 const DEFAULT: Known = { width: 25, height: 30, colClueDepth: 8, rowClueDepth: 8 }; // 25×30 is the most common size
 const NAMES = ['Top-left corner', 'Top-right corner', 'Bottom-right corner', 'Bottom-left corner'];
 const sizeKey = (w: number, h: number) => `${w}x${h}`;
+// The real cause goes on screen: it is the only way to learn why a photo failed on the phone.
+const why = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const isKnown = (z: { width: number; height: number }) => KNOWN_SIZES.some((k) => k.width === z.width && k.height === z.height);
 const MIN_SIDE = 1, MAX_SIDE = 50; // 50: the largest side detection has handled on real photos (cells ≈ 30 px)
 const sideOk = (n: number) => Number.isInteger(n) && n >= MIN_SIDE && n <= MAX_SIDE;
@@ -66,6 +68,7 @@ export function GridCheck(props: {
   const [crossed, setCrossed] = useState(false);
   const [busy, setBusy] = useState(0);
   const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0); // bumped by Try again: re-reads the same file
   const canvas = useRef<HTMLCanvasElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const seq = useRef(0); // only the latest re-mesh may update the screen
@@ -96,13 +99,13 @@ export function GridCheck(props: {
       if (!live) { closeSession(s.id); return; }
       apply(s, result as never, props.knownSize);
       if (result.ok && props.knownSize) remesh(s.id, cornersOf(result.geometry), props.knownSize);
-    }).catch(() => { if (live) setError('Could not read the photo.'); });
+    }).catch((e) => { if (live) setError(`Could not read the photo. (${why(e)})`); });
     return () => { // leaving the screen or a new file: free the worker's copy of the photo
       live = false;
       if (sid.current !== null && !handedOver.current) closeSession(sid.current);
       sid.current = null;
     };
-  }, [props.file]);
+  }, [props.file, attempt]);
 
   useEffect(() => { if (canvas.current && session) draw(canvas.current, session, geometry); }, [session, geometry]);
 
@@ -158,7 +161,7 @@ export function GridCheck(props: {
     if (!session) return;
     seq.current++;
     setBusy((n) => n + 1);
-    try { const r = await rotateSession(session.id, 1); apply(r.session, r.result as never); } catch { setError('Could not rotate the photo.'); }
+    try { const r = await rotateSession(session.id, 1); apply(r.session, r.result as never); } catch (e) { setError(`Could not rotate the photo. (${why(e)})`); }
     finally { setBusy((n) => n - 1); }
   };
 
@@ -170,7 +173,15 @@ export function GridCheck(props: {
 
   const cancel = () => { if (sid.current !== null) closeSession(sid.current); sid.current = null; props.onCancel(); };
 
-  if (error) return <main><p class="error">{error}</p><button type="button" onClick={cancel}>Cancel</button></main>;
+  const retry = () => { setError(''); setSession(null); setAttempt((n) => n + 1); };
+
+  if (error) return (
+    <main>
+      <p class="error">{error}</p>
+      <button type="button" class="primary" onClick={retry}>Try again</button>
+      <button type="button" onClick={cancel}>Cancel</button>
+    </main>
+  );
   if (!session) return <main><p>Reading the photo…</p></main>;
 
   const num = (e: Event) => Number((e.target as HTMLInputElement).value);

@@ -147,6 +147,16 @@ test('a rejecting re-mesh shows the crossed message instead of crashing', async 
   expect(use().disabled).toBe(true);
 });
 
+test('a read error shows the error text; Try again reads the same file again', async () => {
+  detectPhoto.mockRejectedValueOnce(new Error('decode failed'));
+  mount();
+  await screen.findByText('Could not read the photo. (decode failed)');
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+  await waitFor(() => expect(use().disabled).toBe(false));
+  expect(detectPhoto).toHaveBeenCalledTimes(2);
+  expect(detectPhoto.mock.calls[1][0]).toBe(file);
+});
+
 test('rotate resets from the rotate result', async () => {
   rotateSession.mockResolvedValue({ session, result: { ok: false, reason: 'x' } });
   mount();
@@ -180,7 +190,7 @@ test('Cancel on the rotate error screen closes the session', async () => {
   const { onCancel } = mount();
   await waitFor(() => expect(use().disabled).toBe(false));
   fireEvent.click(screen.getByRole('button', { name: 'Rotate' }));
-  await screen.findByText('Could not rotate the photo.');
+  await screen.findByText(/^Could not rotate the photo\. \(/);
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(closeSession).toHaveBeenCalledWith(7);
   expect(onCancel).toHaveBeenCalled();
