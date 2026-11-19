@@ -18,6 +18,7 @@ export const KNOWN_SIZES: ReadonlyArray<{ width: number; height: number }> = [
   { width: 20, height: 15 },
   { width: 15, height: 20 },
   { width: 20, height: 20 },
+  { width: 20, height: 35 },
   { width: 25, height: 30 },
   { width: 25, height: 35 },
   { width: 25, height: 40 },
