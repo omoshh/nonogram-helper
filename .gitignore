@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.superpowers/
+# Photos contain GPS EXIF data: never commit
+/empty/
+/partial-solve/
+/solved-pair/
+/PXL_*.jpg
