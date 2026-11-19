@@ -4,14 +4,15 @@ import { IDBFactory } from 'fake-indexeddb';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/preact';
 import { solve } from '../../src/core/solver';
 import type { Puzzle } from '../../src/core/types';
+import type { SolveResult } from '../../src/core/solver';
 import { listPuzzles } from '../../src/store/db';
 import { App } from '../../src/ui/App';
 
-vi.mock('../../src/worker/client', () => ({
-  solveAsync: async (p: Puzzle) => solve(p),
-}));
+const { solveAsync } = vi.hoisted(() => ({ solveAsync: vi.fn() }));
+vi.mock('../../src/worker/client', () => ({ solveAsync }));
 
 beforeEach(() => {
+  solveAsync.mockImplementation(async (p: Puzzle) => solve(p));
   globalThis.indexedDB = new IDBFactory();
   location.hash = '#/new';
 });
@@ -65,4 +66,38 @@ test('a sum mismatch is explained and the long line flagged', async () => {
   screen.getByText('Row 2 needs 3 cells but has 2.');
   expect(screen.getByLabelText('Row 2').closest('.clue-line')!.classList.contains('flagged')).toBe(true);
   screen.getByRole('button', { name: 'Row 2' }); // in "Check these lines"
+});
+
+test('a result that arrives after an edit is dropped', async () => {
+  let finish!: (r: SolveResult) => void;
+  solveAsync.mockImplementation((p: Puzzle) => new Promise((res) => { finish = () => res(solve(p)); }));
+  enter(5, 5, ['4', '1 1', '4', '1', '1'], ['5', '1.1', '1,1', '3', '']);
+  fireEvent.click(solveButton());
+  fireEvent.input(screen.getByLabelText('Row 5'), { target: { value: '2' } });
+  finish(undefined as never);
+  await new Promise((r) => setTimeout(r, 50));
+  expect(location.hash).toBe('#/new');
+  expect(await listPuzzles()).toHaveLength(0);
+  expect(screen.queryByRole('button', { name: 'Save anyway' })).toBeNull();
+});
+
+test('Save anyway tapped twice saves one record', async () => {
+  enter(2, 2, ['1', '1'], ['1', '1']);
+  fireEvent.click(solveButton());
+  const button = await screen.findByRole('button', { name: 'Save anyway' });
+  fireEvent.click(button);
+  fireEvent.click(button);
+  await waitFor(() => expect(location.hash).toMatch(/^#\/p\//));
+  expect(await listPuzzles()).toHaveLength(1);
+});
+
+test('a timed-out solve does not blame the clues', async () => {
+  solveAsync.mockResolvedValue({
+    status: 'multiple', reference: new Uint8Array(4), suspect: [{ axis: 'row', index: 0 }], ms: 5000, timedOut: true,
+  } satisfies SolveResult);
+  enter(2, 2, ['1', '1'], ['1', '1']);
+  fireEvent.click(solveButton());
+  await screen.findByText('The solver ran out of time. The puzzle may still be correct.');
+  screen.getByRole('button', { name: 'Save anyway' });
+  expect(screen.queryByText(/probably wrong/)).toBeNull();
 });

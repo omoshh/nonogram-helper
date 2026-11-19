@@ -8,8 +8,9 @@ export function GridView(props: {
 }) {
   const { width, height, cells, rows, cols, marked, markColor, onTap } = props;
   const withClues = !!(rows && cols);
-  // Fit about 360px of cells on a phone; the box scrolls when the clues make it wider.
-  const cell = Math.max(10, Math.min(32, Math.floor(360 / width)));
+  // Fit about 360px of cells on a phone; the box scrolls when wider.
+  // Tappable grids keep cells finger-sized (28px) and scroll instead.
+  const cell = Math.max(onTap ? 28 : 10, Math.min(32, Math.floor(360 / width)));
 
   const tap = (e: MouseEvent) => {
     const i = (e.target as HTMLElement).dataset.cell;

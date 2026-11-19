@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { LineRef, Puzzle } from '../core/types';
 import { KNOWN_SIZES } from '../core/clues';
 import { validate, issueLines, type Issue } from '../core/validate';
@@ -38,7 +38,8 @@ function parseFixture(text: string): Puzzle | string {
   }
 }
 
-type Outcome = { text: string[]; saveAnyway?: Uint8Array };
+/** saveAnyway holds the puzzle that was solved, never the live (maybe edited) one. */
+type Outcome = { text: string[]; saveAnyway?: { puzzle: Puzzle; reference: Uint8Array } };
 
 export function NewPuzzle(props: { debug: boolean }) {
   const [sizeChoice, setSizeChoice] = useState(DEFAULT_SIZE);
@@ -52,8 +53,17 @@ export function NewPuzzle(props: { debug: boolean }) {
   const [flagged, setFlagged] = useState<LineRef[]>([]);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [busy, setBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // Bumped on every edit, size change and unmount: a solve result from an older generation is dropped.
+  const generation = useRef(0);
+  const solving = useRef(false);
+  const savingRef = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; generation.current++; }, []);
+  const invalidate = () => { generation.current++; setOutcome(null); };
 
   const start = (p: Puzzle) => {
+    generation.current++;
     setPuzzle(p);
     setEditorKey((k) => k + 1);
     setFlagged([]);
@@ -115,31 +125,46 @@ export function NewPuzzle(props: { debug: boolean }) {
     );
   }
 
-  const save = async (status: 'unique' | 'multiple', reference: Uint8Array) => {
-    const id = crypto.randomUUID();
-    await putPuzzle({
-      id, ...puzzle, answerDigits: [], reference, status, createdAt: new Date().toISOString(),
-    });
-    location.hash = `#/p/${id}`;
+  const save = async (solved: Puzzle, status: 'unique' | 'multiple', reference: Uint8Array) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      const id = crypto.randomUUID();
+      await putPuzzle({
+        id, ...solved, answerDigits: [], reference, status, createdAt: new Date().toISOString(),
+      });
+      if (mounted.current) location.hash = `#/p/${id}`;
+    } catch (e) {
+      if (mounted.current) setOutcome({ text: [`Could not save: ${e instanceof Error ? e.message : String(e)}`] });
+    } finally {
+      savingRef.current = false;
+      if (mounted.current) setSaving(false);
+    }
   };
 
   const runSolve = async () => {
-    const issues = validate(puzzle);
+    if (solving.current || savingRef.current) return;
+    const solved = puzzle;
+    const issues = validate(solved);
     if (issues.length > 0) {
       setFlagged(issueLines(issues));
       setOutcome({ text: issues.map(issueText) });
       return;
     }
+    solving.current = true;
     setBusy(true);
     setOutcome({ text: ['Solving…'] });
+    const gen = generation.current;
     try {
-      const r = await solveAsync(puzzle);
+      const r = await solveAsync(solved);
       setTime('solve', r.ms);
+      if (gen !== generation.current) return; // clues changed or screen left meanwhile
       if (r.timedOut && r.reference) {
         setFlagged([]);
-        setOutcome({ text: ['The solver ran out of time. The puzzle may still be correct.'], saveAnyway: r.reference });
+        setOutcome({ text: ['The solver ran out of time. The puzzle may still be correct.'], saveAnyway: { puzzle: solved, reference: r.reference } });
       } else if (r.status === 'unique' && r.reference) {
-        await save('unique', r.reference);
+        await save(solved, 'unique', r.reference);
       } else if (r.status === 'none') {
         setFlagged(r.suspect);
         setOutcome({ text: ['No solution. Some clues are probably wrong.'] });
@@ -147,21 +172,24 @@ export function NewPuzzle(props: { debug: boolean }) {
         setFlagged(r.suspect);
         setOutcome({
           text: ['More than one solution. Some clues are probably wrong, or a given is missing.'],
-          saveAnyway: r.reference ?? undefined,
+          saveAnyway: r.reference ? { puzzle: solved, reference: r.reference } : undefined,
         });
       }
     } catch (e) {
-      setOutcome({ text: [`Could not solve: ${e instanceof Error ? e.message : String(e)}`] });
+      if (gen === generation.current) setOutcome({ text: [`Could not solve: ${e instanceof Error ? e.message : String(e)}`] });
     } finally {
-      setBusy(false);
+      solving.current = false;
+      if (mounted.current) setBusy(false);
     }
   };
 
   return (
     <main>
       <h2>New puzzle {puzzle.width} × {puzzle.height}</h2>
-      <button type="button" class="link" onClick={() => setPuzzle(null)}>Change size (clears the clues)</button>
+      <button type="button" class="link" onClick={() => { generation.current++; setPuzzle(null); }}>Change size (clears the clues)</button>
       <p class="hint">Type the numbers of each line separated by space, dot or comma. Leave empty for a blank line.</p>
+      {/* Any typing, even invalid text, makes a running solve stale. */}
+      <div onInput={invalidate}>
       <ClueEditor
         key={editorKey}
         width={puzzle.width}
@@ -170,20 +198,24 @@ export function NewPuzzle(props: { debug: boolean }) {
         cols={puzzle.cols}
         givens={puzzle.givens}
         flagged={flagged}
-        onChange={(next) => { setPuzzle({ ...puzzle, ...next }); setOutcome(null); }}
+        onChange={(next) => { setPuzzle({ ...puzzle, ...next }); invalidate(); }}
         onInvalidChange={setInvalid}
       />
+      </div>
       <div class="solve-bar">
         {outcome && (
           <div class="outcome" role="status">
             {outcome.text.map((t) => <p key={t}>{t}</p>)}
-            {outcome.saveAnyway && (
-              <button type="button" class="secondary" onClick={() => save('multiple', outcome.saveAnyway!)}>Save anyway</button>
+            {outcome.saveAnyway && invalid === 0 && (
+              <button type="button" class="secondary" disabled={saving}
+                onClick={() => save(outcome.saveAnyway!.puzzle, 'multiple', outcome.saveAnyway!.reference)}>
+                Save anyway
+              </button>
             )}
           </div>
         )}
         {invalid > 0 && <p class="error">{invalid === 1 ? '1 line is' : `${invalid} lines are`} not valid. Use only numbers.</p>}
-        <button type="button" class="primary" disabled={busy || invalid > 0} onClick={runSolve}>Solve</button>
+        <button type="button" class="primary" disabled={busy || saving || invalid > 0} onClick={runSolve}>Solve</button>
       </div>
     </main>
   );

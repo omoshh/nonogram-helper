@@ -15,13 +15,20 @@ export function PuzzleList() {
   useEffect(() => { load(); }, []);
 
   const exportBackup = async () => {
-    const blob = new Blob([await exportAll()], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `nonogram-backup-${today()}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    try {
+      const blob = new Blob([await exportAll()], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `nonogram-backup-${today()}.json`;
+      // Firefox for Android only downloads from an anchor that is in the document.
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+    } catch (err) {
+      setMessage(`Could not export: ${err instanceof Error ? err.message : String(err)}`);
+    }
   };
 
   const importBackup = async (e: Event) => {
@@ -31,7 +38,7 @@ export function PuzzleList() {
     if (!file) return;
     try {
       const n = await importAll(await file.text());
-      setMessage(`${n} puzzles imported`);
+      setMessage(`${n} ${n === 1 ? 'puzzle' : 'puzzles'} imported`);
       load();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : String(err));

@@ -17,7 +17,7 @@ function useHash(): string {
 /** Placeholder until Task 10 builds the puzzle page, clue edit and check. */
 function PuzzlePage(props: { id: string }) {
   const [rec, setRec] = useState<PuzzleRecord | null | undefined>(undefined);
-  useEffect(() => { getPuzzle(props.id).then((r) => setRec(r ?? null)); }, [props.id]);
+  useEffect(() => { getPuzzle(props.id).then((r) => setRec(r ?? null), () => setRec(null)); }, [props.id]);
   return (
     <main>
       <a href="#/">← All puzzles</a>
