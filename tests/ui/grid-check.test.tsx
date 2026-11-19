@@ -132,4 +132,27 @@ test('cancel closes the session', async () => {
   await waitFor(() => expect(use().disabled).toBe(false));
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(onCancel).toHaveBeenCalled();
+  expect(closeSession).toHaveBeenCalledWith(7);
+});
+
+test('Use this grid is disabled while a rotate is pending', async () => {
+  let done!: (v: unknown) => void;
+  rotateSession.mockReturnValue(new Promise((r) => { done = r; }));
+  mount();
+  await waitFor(() => expect(use().disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: 'Rotate' }));
+  await waitFor(() => expect(use().disabled).toBe(true));
+  done({ session, result: { ok: false, reason: 'x' } });
+  await waitFor(() => expect(use().disabled).toBe(false));
+});
+
+test('Cancel on the rotate error screen closes the session', async () => {
+  rotateSession.mockRejectedValue(new Error('boom'));
+  const { onCancel } = mount();
+  await waitFor(() => expect(use().disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button', { name: 'Rotate' }));
+  await screen.findByText('Could not rotate the photo.');
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(closeSession).toHaveBeenCalledWith(7);
+  expect(onCancel).toHaveBeenCalled();
 });

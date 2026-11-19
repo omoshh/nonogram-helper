@@ -129,7 +129,9 @@ export function GridCheck(props: {
   const rotate = async () => {
     if (!session) return;
     seq.current++;
+    setBusy((n) => n + 1);
     try { const r = await rotateSession(session.id, 1); apply(r.session, r.result as never); } catch { setError('Could not rotate the photo.'); }
+    finally { setBusy((n) => n - 1); }
   };
 
   const confirm = async () => {
@@ -140,7 +142,7 @@ export function GridCheck(props: {
 
   const cancel = () => { if (sid.current !== null) closeSession(sid.current); props.onCancel(); };
 
-  if (error) return <main><p class="error">{error}</p><button type="button" onClick={props.onCancel}>Cancel</button></main>;
+  if (error) return <main><p class="error">{error}</p><button type="button" onClick={cancel}>Cancel</button></main>;
   if (!session) return <main><p>Reading the photo…</p></main>;
 
   const known = KNOWN_SIZES.some((k) => k.width === size.width && k.height === size.height);
