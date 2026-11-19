@@ -2,7 +2,7 @@ import type { GrayImage, Point } from '../vision/types';
 import type { LineRef } from '../core/types';
 import { toGray, downscale, rotate90 } from '../vision/image';
 import { detect, meshFromCorners, type TableGeometry, type TableSize } from '../vision/mesh';
-import { cutStrip, thumbnail } from '../vision/strips';
+import { cutStrip } from '../vision/strips';
 
 export interface PhotoSession { id: number; width: number; height: number; preview: ImageBitmap }
 export type DetectResult = ReturnType<typeof detect>;
@@ -18,7 +18,7 @@ export type VisionResponse =
   | { id: number; ok: true; kind: 'detect'; session: PhotoSession; result: DetectResult; ms: number }
   | { id: number; ok: true; kind: 'mesh'; geometry: TableGeometry }
   | { id: number; ok: true; kind: 'rotate'; session: PhotoSession; result: DetectResult }
-  | { id: number; ok: true; kind: 'strips'; rows: Blob[]; cols: Blob[]; thumbnail: Blob }
+  | { id: number; ok: true; kind: 'strips'; rows: Blob[]; cols: Blob[] }
   | { id: number; ok: true; kind: 'close' }
   | { id: number; ok: false; error: string };
 
@@ -87,10 +87,8 @@ async function handle(req: VisionRequest): Promise<{ msg: VisionResponse; transf
       const s = session(req.sessionId);
       const cut = (axis: 'row' | 'col', n: number) =>
         Promise.all(Array.from({ length: n }, (_, index) => png(cutStrip(s.upright, req.g, { axis, index } as LineRef, req.px))));
-      const [rows, cols, thumb] = await Promise.all([
-        cut('row', req.g.height), cut('col', req.g.width), png(thumbnail(s.upright, req.g, 120)),
-      ]);
-      return { msg: { id, ok: true, kind: 'strips', rows, cols, thumbnail: thumb } };
+      const [rows, cols] = await Promise.all([cut('row', req.g.height), cut('col', req.g.width)]);
+      return { msg: { id, ok: true, kind: 'strips', rows, cols } };
     }
     case 'close':
       if (cur?.id === req.sessionId) cur = null;

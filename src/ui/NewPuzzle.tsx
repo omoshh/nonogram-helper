@@ -9,12 +9,6 @@ import { GridCheck } from './GridCheck';
 import { closeSession, stripsAsync } from '../worker/visionClient';
 
 type Strips = { rows: string[]; cols: string[] };
-const toDataUrl = (b: Blob) => new Promise<string>((res, rej) => {
-  const r = new FileReader();
-  r.onload = () => res(r.result as string);
-  r.onerror = () => rej(r.error);
-  r.readAsDataURL(b);
-});
 
 const sizeKey = (w: number, h: number) => `${w}x${h}`;
 const DEFAULT_SIZE = sizeKey(25, 30);
@@ -76,11 +70,10 @@ export function NewPuzzle(props: { debug: boolean }) {
   const [editorKey, setEditorKey] = useState(0);
   const latest = useRef<Draft | null>(restored);
 
-  // Photo flow: the picked file, the cut strips (object URLs), the thumbnail and the vision session.
+  // Photo flow: the picked file, the cut strips (object URLs) and the vision session.
   const [photo, setPhoto] = useState<File | null>(null);
   const [cutting, setCutting] = useState(false);
   const [strips, setStrips] = useState<Strips | null>(null);
-  const thumb = useRef<Blob | null>(null);
   const sessionId = useRef<number | null>(null);
   const urls = useRef<string[]>([]);
   const alive = useRef(true);
@@ -89,7 +82,6 @@ export function NewPuzzle(props: { debug: boolean }) {
     urls.current = [];
     if (sessionId.current !== null) closeSession(sessionId.current);
     sessionId.current = null;
-    thumb.current = null;
     setStrips(null);
   };
   useEffect(() => () => { alive.current = false; dropPhoto(); }, []);
@@ -101,7 +93,6 @@ export function NewPuzzle(props: { debug: boolean }) {
       const s = await stripsAsync(r.sessionId, r.geometry as never, 40);
       if (!alive.current) return; // left the screen meanwhile; the session is already closed
       const url = (b: Blob) => { const u = URL.createObjectURL(b); urls.current.push(u); return u; };
-      thumb.current = s.thumbnail;
       setStrips({ rows: s.rows.map(url), cols: s.cols.map(url) });
     } catch { /* no strips: the clues can still be typed */ }
     if (!alive.current) return;
@@ -181,9 +172,7 @@ export function NewPuzzle(props: { debug: boolean }) {
 
   const save = async (solved: Puzzle, status: 'unique' | 'multiple', reference: Uint8Array, timedOut: boolean) => {
     const id = crypto.randomUUID();
-    // The thumbnail is optional: never lose the puzzle over it.
-    const thumbnail = thumb.current ? await toDataUrl(thumb.current).catch(() => undefined) : undefined;
-    await putPuzzle({ id, ...solved, answerDigits: [], reference, status, createdAt: new Date().toISOString(), ...(timedOut ? { timedOut } : {}), ...(thumbnail ? { thumbnail } : {}) });
+    await putPuzzle({ id, ...solved, answerDigits: [], reference, status, createdAt: new Date().toISOString(), ...(timedOut ? { timedOut } : {}) });
     clearDraft();
     dropPhoto();
     return `#/p/${id}`;

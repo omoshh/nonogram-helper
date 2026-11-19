@@ -75,9 +75,9 @@ export async function stripsAsync(
   sessionId: number,
   g: TableGeometry,
   px: number,
-): Promise<{ rows: Blob[]; cols: Blob[]; thumbnail: Blob }> {
-  const { rows, cols, thumbnail } = await request<'strips'>({ kind: 'strips', sessionId, g, px });
-  return { rows, cols, thumbnail };
+): Promise<{ rows: Blob[]; cols: Blob[] }> {
+  const { rows, cols } = await request<'strips'>({ kind: 'strips', sessionId, g, px });
+  return { rows, cols };
 }
 
 export function closeSession(sessionId: number): void {

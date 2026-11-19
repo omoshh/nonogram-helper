@@ -69,7 +69,6 @@ export function PuzzleList() {
           {puzzles.map((p) => (
             <li key={p.id}>
               <a class="card" href={`#/p/${p.id}`}>
-                {p.thumbnail && <img src={p.thumbnail} alt="" style="max-width:100%;max-height:60px" />}
                 <strong>{p.width} × {p.height}</strong>
                 {(p.journal || p.page) && (
                   <span>{[p.journal, p.page && `page ${p.page}`].filter(Boolean).join(', ')}</span>

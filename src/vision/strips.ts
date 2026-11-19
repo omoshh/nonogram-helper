@@ -38,10 +38,3 @@ export function cutStrip(upright: GrayImage, g: TableGeometry, line: LineRef, px
   // column clue cells side by side, top cell first; each cell stays upright so its digits read normally
   return render(upright, g, g.colClueDepth * px, px, (x, y) => [c + (x % px) / px, Math.floor(x / px) + y / px]);
 }
-
-/** Rectified grid without clues, long side = maxSide. */
-export function thumbnail(upright: GrayImage, g: TableGeometry, maxSide: number): GrayImage {
-  const s = maxSide / Math.max(g.width, g.height);
-  const w = Math.max(1, Math.round(g.width * s)), h = Math.max(1, Math.round(g.height * s));
-  return render(upright, g, w, h, (x, y) => [g.rowClueDepth + (x / w) * g.width, g.colClueDepth + (y / h) * g.height]);
-}

@@ -178,7 +178,7 @@ describe('from photo', () => {
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() }));
     visionMocks.detectPhoto.mockResolvedValue({ session: photoSession, result: { ok: true, geometry, ms: 1 }, ms: 1 });
     visionMocks.meshFromCornersAsync.mockResolvedValue(geometry);
-    visionMocks.stripsAsync.mockResolvedValue({ rows: [blob('r1'), blob('r2')], cols: [blob('c1'), blob('c2'), blob('c3')], thumbnail: blob('t') });
+    visionMocks.stripsAsync.mockResolvedValue({ rows: [blob('r1'), blob('r2')], cols: [blob('c1'), blob('c2'), blob('c3')] });
     HTMLCanvasElement.prototype.getContext = (() => ({ drawImage() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} })) as never;
     Element.prototype.getBoundingClientRect = () => ({ left: 0, top: 0, width: 500, height: 400, right: 500, bottom: 400, x: 0, y: 0, toJSON() {} });
   });
@@ -193,7 +193,7 @@ describe('from photo', () => {
     return container;
   }
 
-  test('detected size, one strip per line, thumbnail saved, session closed', async () => {
+  test('detected size, one strip per line, no thumbnail saved, session closed', async () => {
     const c = await pickAndConfirm();
     await screen.findByLabelText('Row 2');
     expect(screen.getByRole('heading', { name: /3 × 2/ })).toBeTruthy();
@@ -204,7 +204,7 @@ describe('from photo', () => {
     fireEvent.click(solveButton());
     await waitFor(() => expect(location.hash).toMatch(/^#\/p\//));
     const [rec] = await listPuzzles();
-    expect(rec.thumbnail).toMatch(/^data:/);
+    expect(rec.thumbnail).toBeUndefined();
     expect(visionMocks.closeSession).toHaveBeenCalledWith(7);
   });
 
@@ -222,12 +222,6 @@ describe('from photo', () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(5);
   });
 
-  const fillAndSolve = () => {
-    ['3', '1'].forEach((t, i) => fireEvent.input(screen.getByLabelText(`Row ${i + 1}`), { target: { value: t } }));
-    ['1', '2', '1'].forEach((t, i) => fireEvent.input(screen.getByLabelText(`Column ${i + 1}`), { target: { value: t } }));
-    fireEvent.click(solveButton());
-  };
-
   test('unmount while strips are pending: no URLs, draft kept', async () => {
     let finish!: (v: unknown) => void;
     visionMocks.stripsAsync.mockReturnValue(new Promise((r) => { finish = r; }));
@@ -235,19 +229,9 @@ describe('from photo', () => {
     sessionStorage.setItem('nonogram-new-draft', 'keep');
     cleanup();
     await new Promise((r) => setTimeout(r, 20));
-    finish({ rows: [blob('a'), blob('b')], cols: [blob('c'), blob('d'), blob('e')], thumbnail: blob('t') });
+    finish({ rows: [blob('a'), blob('b')], cols: [blob('c'), blob('d'), blob('e')] });
     await new Promise((r) => setTimeout(r, 20));
     expect(URL.createObjectURL).not.toHaveBeenCalled();
     expect(sessionStorage.getItem('nonogram-new-draft')).toBe('keep');
-  });
-
-  test('a thumbnail error still saves the puzzle, without thumbnail', async () => {
-    visionMocks.stripsAsync.mockResolvedValue({ rows: [blob('a'), blob('b')], cols: [blob('c'), blob('d'), blob('e')], thumbnail: 'not a blob' });
-    await pickAndConfirm();
-    await screen.findByLabelText('Row 2');
-    fillAndSolve();
-    await waitFor(() => expect(location.hash).toMatch(/^#\/p\//));
-    const [rec] = await listPuzzles();
-    expect(rec.thumbnail).toBeUndefined();
   });
 });

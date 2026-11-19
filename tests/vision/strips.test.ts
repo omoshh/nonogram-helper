@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cutStrip, thumbnail } from '../../src/vision/strips';
+import { cutStrip } from '../../src/vision/strips';
 import type { TableGeometry } from '../../src/vision/mesh';
 import type { GrayImage } from '../../src/vision/types';
 import { synthTable } from '../support/synthTable';
@@ -49,13 +49,5 @@ describe('cutStrip', () => {
       expect(at(s, j * px + 0.2 * px, px / 2), `cell ${j} left`).toBeGreaterThan(128);
       expect(at(s, j * px + px / 2, 0.2 * px), `cell ${j} top`).toBeGreaterThan(128);
     }
-  });
-});
-
-describe('thumbnail', () => {
-  it('long side is maxSide', () => {
-    const t = thumbnail(img, g, 120);
-    expect(Math.max(t.width, t.height)).toBe(120);
-    expect(t.width).toBeGreaterThan(t.height); // 12 x 10 grid
   });
 });
