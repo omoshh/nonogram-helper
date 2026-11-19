@@ -13,6 +13,8 @@ let nextId = 1;
 const pending = new Map<number, Pending>();
 
 function rejectAll(message: string): void {
+  worker?.terminate();
+  worker = null;
   const err = new Error(message);
   for (const p of pending.values()) p.reject(err);
   pending.clear();
@@ -39,7 +41,12 @@ function request(req: DistributiveOmit<WorkerRequest, 'id'>): Promise<WorkerResp
   return new Promise((resolve, reject) => {
     const id = nextId++;
     pending.set(id, { resolve, reject });
-    getWorker().postMessage({ ...req, id });
+    try {
+      getWorker().postMessage({ ...req, id });
+    } catch (err) {
+      pending.delete(id);
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
   });
 }
 
