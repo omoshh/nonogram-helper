@@ -12,6 +12,7 @@
   --flag-bg: #fff4d6;
   --flag: #b5830a;
   --cell-filled: #1b1b1b;
+  --cell-given: #5a6270;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
@@ -29,6 +30,7 @@
     --flag-bg: #3a3014;
     --flag: #e5b53a;
     --cell-filled: #ececec;
+    --cell-given: #9aa3b2;
   }
 }
 
@@ -115,6 +117,7 @@ input.invalid { border: 2px solid var(--error); background: var(--error-bg); }
   background: var(--card);
 }
 .grid-cell.filled { background: var(--cell-filled); }
+.grid-cell.given { background: var(--cell-given); }
 .grid-cell.empty { background: radial-gradient(circle, var(--muted) 15%, transparent 18%), var(--card); }
 .grid-cell.edge-right { border-right-color: var(--line-strong); }
 .grid-cell.edge-bottom { border-bottom-color: var(--line-strong); }

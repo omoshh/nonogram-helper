@@ -11,11 +11,15 @@ import { App } from '../../src/ui/App';
 const { solveAsync } = vi.hoisted(() => ({ solveAsync: vi.fn() }));
 vi.mock('../../src/worker/client', () => ({ solveAsync }));
 
+const stubConfirm = (answer: boolean) => { const fn = vi.fn(() => answer); vi.stubGlobal('confirm', fn); return fn; };
+
 beforeEach(() => {
   solveAsync.mockImplementation(async (p: Puzzle) => solve(p));
   globalThis.indexedDB = new IDBFactory();
   location.hash = '#/new';
+  sessionStorage.clear();
 });
+afterEach(() => vi.unstubAllGlobals());
 afterEach(cleanup);
 
 function enter(width: number, height: number, rows: string[], cols: string[]) {
@@ -100,4 +104,61 @@ test('a timed-out solve does not blame the clues', async () => {
   await screen.findByText('The solver ran out of time. The puzzle may still be correct.');
   screen.getByRole('button', { name: 'Save anyway' });
   expect(screen.queryByText(/probably wrong/)).toBeNull();
+});
+
+const changeSize = () => screen.getByRole('button', { name: /Change size/ });
+
+test('Change size keeps the clues when the confirm is declined', () => {
+  const confirm = stubConfirm(false);
+  enter(2, 2, ['1', ''], ['', '']);
+  fireEvent.click(changeSize());
+  expect(confirm).toHaveBeenCalledWith('Discard the clues you typed?');
+  expect((screen.getByLabelText('Row 1') as HTMLInputElement).value).toBe('1');
+});
+
+test('Change size clears the clues when confirmed, and asks nothing when empty', () => {
+  const confirm = stubConfirm(true);
+  enter(2, 2, ['1', ''], ['', '']);
+  fireEvent.click(changeSize());
+  screen.getByRole('button', { name: 'Enter clues' });
+  expect(sessionStorage.getItem('nonogram-new-draft')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Enter clues' }));
+  fireEvent.click(changeSize());
+  expect(confirm).toHaveBeenCalledTimes(1);
+});
+
+test('typed clues survive leaving and reopening the screen, and a save clears the draft', async () => {
+  enter(2, 2, ['1', '1'], ['1', '']);
+  cleanup();
+  render(<App />);
+  expect((screen.getByLabelText('Row 2') as HTMLInputElement).value).toBe('1');
+  expect((screen.getByLabelText('Column 1') as HTMLInputElement).value).toBe('1');
+  fireEvent.input(screen.getByLabelText('Column 2'), { target: { value: '1' } });
+  fireEvent.click(solveButton());
+  await screen.findByRole('button', { name: 'Save anyway' });
+  fireEvent.click(screen.getByRole('button', { name: 'Save anyway' }));
+  await waitFor(() => expect(location.hash).toMatch(/^#\/p\//));
+  expect(sessionStorage.getItem('nonogram-new-draft')).toBeNull();
+});
+
+test('a timed-out Save anyway shows the timeout note on the puzzle page', async () => {
+  solveAsync.mockResolvedValue({
+    status: 'multiple', reference: new Uint8Array(4), suspect: [], ms: 5000, timedOut: true,
+  } satisfies SolveResult);
+  enter(2, 2, ['1', '1'], ['1', '1']);
+  fireEvent.click(solveButton());
+  fireEvent.click(await screen.findByRole('button', { name: 'Save anyway' }));
+  await waitFor(() => expect(location.hash).toMatch(/^#\/p\//));
+  expect((await listPuzzles())[0].timedOut).toBe(true);
+  cleanup();
+  render(<App />);
+  await screen.findByText('The solver ran out of time on this puzzle. Only cells it could prove are checked.');
+  expect(screen.queryByText(/more than one solution/)).toBeNull();
+});
+
+test('No solution with no suspect line says so', async () => {
+  solveAsync.mockResolvedValue({ status: 'none', reference: null, suspect: [], ms: 1, timedOut: false } satisfies SolveResult);
+  enter(2, 2, ['1', '1'], ['1', '1']);
+  fireEvent.click(solveButton());
+  await screen.findByText('No single line stands out; compare every line with the puzzle.');
 });

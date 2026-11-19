@@ -4,9 +4,11 @@ export function GridView(props: {
   width: number; height: number; cells: Uint8Array;
   rows?: number[][]; cols?: number[][];
   marked?: Set<number>; markColor?: string;
+  /** Cells printed filled in the puzzle: drawn apart from the user's marks. */
+  givens?: Set<number>;
   onTap?: (cell: number) => void;
 }) {
-  const { width, height, cells, rows, cols, marked, markColor, onTap } = props;
+  const { width, height, cells, rows, cols, marked, markColor, givens, onTap } = props;
   const withClues = !!(rows && cols);
   // Fit about 360px of cells on a phone; the box scrolls when wider.
   // Tappable grids keep cells finger-sized (28px) and scroll instead.
@@ -36,6 +38,7 @@ export function GridView(props: {
       let cls = 'grid-cell';
       if (v === FILLED) cls += ' filled';
       else if (v === EMPTY) cls += ' empty';
+      if (givens?.has(i)) cls += ' given';
       if (c % 5 === 4 && c < width - 1) cls += ' edge-right';
       if (r % 5 === 4 && r < height - 1) cls += ' edge-bottom';
       const isMarked = marked?.has(i);

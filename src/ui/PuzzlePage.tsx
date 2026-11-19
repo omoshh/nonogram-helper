@@ -2,6 +2,7 @@ import type { ComponentChildren } from 'preact';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Puzzle } from '../core/types';
 import { deletePuzzle, getPuzzle, journalNames, putPuzzle, type PuzzleRecord } from '../store/db';
+import { today } from './today';
 import { GridView } from './GridView';
 
 /** undefined while loading, null when missing. */
@@ -21,12 +22,7 @@ export function RecordGate(props: { rec: PuzzleRecord | null | undefined; childr
   return <>{props.children(props.rec)}</>;
 }
 
-function today(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
+const TIMEOUT_NOTE = 'The solver ran out of time on this puzzle. Only cells it could prove are checked.';
 const MULTIPLE_NOTE = 'This puzzle has more than one solution. Only cells that are the same in all solutions are checked.';
 
 function Details(props: { initial: PuzzleRecord }) {
@@ -62,7 +58,7 @@ function Details(props: { initial: PuzzleRecord }) {
     <main>
       <a href="#/">← All puzzles</a>
       <h2>Puzzle {rec.width} × {rec.height}</h2>
-      {rec.status === 'multiple' && <p class="message">{MULTIPLE_NOTE}</p>}
+      {rec.status === 'multiple' && <p class="message">{rec.timedOut ? TIMEOUT_NOTE : MULTIPLE_NOTE}</p>}
       {error && <p class="error" role="alert">{error}</p>}
 
       <a class="button primary" href={`#/p/${rec.id}/check`}>Check my grid</a>

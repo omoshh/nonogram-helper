@@ -11,7 +11,8 @@ const AMBIGUOUS_1 = 'The clues do not decide the remaining cells.';
 const AMBIGUOUS_2 = 'The highlighted cells have more than one valid answer. Any choice that fits the clues is correct.';
 
 const capital = (s: string) => s[0].toUpperCase() + s.slice(1);
-const lineName = (line: LineRef) => `${line.axis === 'row' ? 'row' : 'column'} ${line.index + 1}`;
+export const lineName = (line: LineRef) => `${line.axis === 'row' ? 'row' : 'column'} ${line.index + 1}`;
+export const lineNameCap = (line: LineRef) => capital(lineName(line));
 const cellName = (p: Puzzle, cell: number) => `row ${Math.floor(cell / p.width) + 1}, column ${(cell % p.width) + 1}`;
 const valueName = (v: Cell) => (v === FILLED ? 'filled' : 'empty');
 

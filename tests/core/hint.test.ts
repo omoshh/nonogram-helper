@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { nextHint } from '../../src/core/hint';
-import { solve, hasSolution } from '../../src/core/solver';
+import { solve } from '../../src/core/solver';
 import { findMistakes } from '../../src/core/check';
 import { UNKNOWN, FILLED, EMPTY, type Puzzle } from '../../src/core/types';
 

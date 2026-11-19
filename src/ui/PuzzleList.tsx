@@ -1,10 +1,17 @@
 import { useEffect, useState } from 'preact/hooks';
+import { today } from './today';
 import { listPuzzles, exportAll, importAll, type PuzzleRecord } from '../store/db';
 
-function today(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+/** Ids in the file that are already stored here; 0 when the file cannot be read (importAll reports that). */
+async function existingCount(json: string): Promise<number> {
+  try {
+    const list = JSON.parse(json)?.puzzles;
+    if (!Array.isArray(list)) return 0;
+    const have = new Set((await listPuzzles()).map((p) => p.id));
+    return list.filter((p) => have.has(p?.id)).length;
+  } catch {
+    return 0;
+  }
 }
 
 export function PuzzleList() {
@@ -37,7 +44,11 @@ export function PuzzleList() {
     input.value = '';
     if (!file) return;
     try {
-      const n = await importAll(await file.text());
+      const text = await file.text();
+      const clash = await existingCount(text);
+      if (clash > 0 && !window.confirm(
+        `${clash} ${clash === 1 ? 'puzzle in the file already exists' : 'puzzles in the file already exist'} on this phone and will be replaced. Continue?`)) return;
+      const n = await importAll(text);
       setMessage(`${n} ${n === 1 ? 'puzzle' : 'puzzles'} imported`);
       load();
     } catch (err) {

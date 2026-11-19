@@ -1,8 +1,9 @@
-import { useState } from 'preact/hooks';
+import { useRef, useState } from 'preact/hooks';
 import type { Puzzle } from '../core/types';
-import { KNOWN_SIZES } from '../core/clues';
+import { KNOWN_SIZES, parseClueLine } from '../core/clues';
 import { putPuzzle } from '../store/db';
 import { SolveFlow } from './SolveFlow';
+import type { Draft } from './ClueEditor';
 
 const sizeKey = (w: number, h: number) => `${w}x${h}`;
 const DEFAULT_SIZE = sizeKey(25, 30);
@@ -29,16 +30,44 @@ function parseFixture(text: string): Puzzle | string {
   }
 }
 
+const DRAFT_KEY = 'nonogram-new-draft';
+type SavedDraft = Draft & { width: number; height: number };
+
+function loadDraft(): SavedDraft | null {
+  try {
+    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? 'null');
+    const strings = (a: unknown, n: number) => Array.isArray(a) && a.length === n && a.every((x) => typeof x === 'string');
+    const ok = (n: unknown) => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= MAX_SIDE;
+    if (d && ok(d.width) && ok(d.height) && strings(d.rows, d.height) && strings(d.cols, d.width)
+      && Array.isArray(d.givens) && d.givens.every((g: unknown) => Number.isInteger(g) && (g as number) >= 0 && (g as number) < d.width * d.height)) return d;
+  } catch { /* unavailable or damaged: start fresh */ }
+  return null;
+}
+const saveDraft = (d: SavedDraft) => { try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d)); } catch { /* ignore */ } };
+const clearDraft = () => { try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ } };
+
+const typedAnything = (d: Draft) => d.givens.length > 0 || [...d.rows, ...d.cols].some((t) => t.trim() !== '');
+
+/** A draft's clues as a puzzle; fields that do not parse stay empty (the editor keeps their text). */
+function draftPuzzle(d: SavedDraft): Puzzle {
+  const line = (t: string) => parseClueLine(t) ?? [];
+  return { width: d.width, height: d.height, rows: d.rows.map(line), cols: d.cols.map(line), givens: d.givens };
+}
+
 export function NewPuzzle(props: { debug: boolean }) {
   const [sizeChoice, setSizeChoice] = useState(DEFAULT_SIZE);
   const [w, setW] = useState('');
   const [h, setH] = useState('');
   const [fixtureError, setFixtureError] = useState('');
 
-  const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
+  const [restored] = useState(loadDraft);
+  const [puzzle, setPuzzle] = useState<Puzzle | null>(() => (restored ? draftPuzzle(restored) : null));
   const [editorKey, setEditorKey] = useState(0);
+  const latest = useRef<Draft | null>(restored);
 
   const start = (p: Puzzle) => {
+    clearDraft();
+    latest.current = null;
     setPuzzle(p);
     setEditorKey((k) => k + 1);
   };
@@ -98,17 +127,29 @@ export function NewPuzzle(props: { debug: boolean }) {
     );
   }
 
-  const save = async (solved: Puzzle, status: 'unique' | 'multiple', reference: Uint8Array) => {
+  const save = async (solved: Puzzle, status: 'unique' | 'multiple', reference: Uint8Array, timedOut: boolean) => {
     const id = crypto.randomUUID();
-    await putPuzzle({ id, ...solved, answerDigits: [], reference, status, createdAt: new Date().toISOString() });
+    await putPuzzle({ id, ...solved, answerDigits: [], reference, status, createdAt: new Date().toISOString(), ...(timedOut ? { timedOut } : {}) });
+    clearDraft();
     return `#/p/${id}`;
+  };
+
+  const changeSize = () => {
+    if (latest.current && typedAnything(latest.current) && !window.confirm('Discard the clues you typed?')) return;
+    clearDraft();
+    latest.current = null;
+    setPuzzle(null);
+  };
+  const onDraft = (d: Draft) => {
+    latest.current = d;
+    saveDraft({ ...d, width: puzzle.width, height: puzzle.height });
   };
 
   return (
     <main>
       <h2>New puzzle {puzzle.width} × {puzzle.height}</h2>
-      <button type="button" class="link" onClick={() => setPuzzle(null)}>Change size (clears the clues)</button>
-      <SolveFlow key={editorKey} initial={puzzle} save={save} />
+      <button type="button" class="link" onClick={changeSize}>Change size (clears the clues)</button>
+      <SolveFlow key={editorKey} initial={puzzle} initialDraft={restored && editorKey === 0 ? restored : undefined} onDraft={onDraft} save={save} />
     </main>
   );
 }

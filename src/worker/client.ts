@@ -31,7 +31,8 @@ function getWorker(): Worker {
     if (msg.ok) p.resolve(msg);
     else p.reject(new Error(msg.error));
   };
-  w.onerror = (e) => rejectAll(e.message || 'worker error');
+  // A failed load is almost always a stale tab after a deploy (old chunk gone).
+  w.onerror = () => rejectAll('The app was updated. Reload the page.');
   w.onmessageerror = () => rejectAll('worker message error');
   worker = w;
   return w;

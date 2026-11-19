@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { LineRef, Puzzle } from '../core/types';
 import { validate, issueLines, type Issue } from '../core/validate';
 import { solveAsync } from '../worker/client';
-import { ClueEditor, lineName } from './ClueEditor';
+import { lineNameCap as lineName } from '../core/text';
+import { ClueEditor, type Draft } from './ClueEditor';
 import { setTime } from './DebugTimes';
 
 function issueText(i: Issue): string {
@@ -12,7 +13,7 @@ function issueText(i: Issue): string {
 }
 
 /** saveAnyway holds the puzzle that was solved, never the live (maybe edited) one. */
-type Outcome = { text: string[]; saveAnyway?: { puzzle: Puzzle; reference: Uint8Array } };
+type Outcome = { text: string[]; saveAnyway?: { puzzle: Puzzle; reference: Uint8Array; timedOut: boolean } };
 
 /**
  * Clue editor + Solve: validates, solves, and calls `save` only for a unique solution or "Save anyway".
@@ -20,7 +21,11 @@ type Outcome = { text: string[]; saveAnyway?: { puzzle: Puzzle; reference: Uint8
  */
 export function SolveFlow(props: {
   initial: Puzzle;
-  save: (solved: Puzzle, status: 'unique' | 'multiple', reference: Uint8Array) => Promise<string>;
+  save: (solved: Puzzle, status: 'unique' | 'multiple', reference: Uint8Array, timedOut: boolean) => Promise<string>;
+  /** Restored raw field text (a saved draft). */
+  initialDraft?: Draft;
+  /** Called with the raw field text whenever it changes. */
+  onDraft?: (d: Draft) => void;
 }) {
   const [puzzle, setPuzzle] = useState(props.initial);
   const [invalid, setInvalid] = useState(0);
@@ -36,12 +41,12 @@ export function SolveFlow(props: {
   useEffect(() => () => { mounted.current = false; generation.current++; }, []);
   const invalidate = () => { generation.current++; setOutcome(null); };
 
-  const save = async (solved: Puzzle, status: 'unique' | 'multiple', reference: Uint8Array) => {
+  const save = async (solved: Puzzle, status: 'unique' | 'multiple', reference: Uint8Array, timedOut = false) => {
     if (savingRef.current) return;
     savingRef.current = true;
     setSaving(true);
     try {
-      const next = await props.save(solved, status, reference);
+      const next = await props.save(solved, status, reference, timedOut);
       if (mounted.current) location.hash = next;
     } catch (e) {
       if (mounted.current) setOutcome({ text: [`Could not save: ${e instanceof Error ? e.message : String(e)}`] });
@@ -70,17 +75,17 @@ export function SolveFlow(props: {
       if (gen !== generation.current) return; // clues changed or screen left meanwhile
       if (r.timedOut && r.reference) {
         setFlagged([]);
-        setOutcome({ text: ['The solver ran out of time. The puzzle may still be correct.'], saveAnyway: { puzzle: solved, reference: r.reference } });
+        setOutcome({ text: ['The solver ran out of time. The puzzle may still be correct.'], saveAnyway: { puzzle: solved, reference: r.reference, timedOut: true } });
       } else if (r.status === 'unique' && r.reference) {
         await save(solved, 'unique', r.reference);
       } else if (r.status === 'none') {
         setFlagged(r.suspect);
-        setOutcome({ text: ['No solution. Some clues are probably wrong.'] });
+        setOutcome({ text: ['No solution. Some clues are probably wrong.', ...(r.suspect.length === 0 ? ['No single line stands out; compare every line with the puzzle.'] : [])] });
       } else {
         setFlagged(r.suspect);
         setOutcome({
           text: ['More than one solution. Some clues are probably wrong, or a given is missing.'],
-          saveAnyway: r.reference ? { puzzle: solved, reference: r.reference } : undefined,
+          saveAnyway: r.reference ? { puzzle: solved, reference: r.reference, timedOut: false } : undefined,
         });
       }
     } catch (e) {
@@ -102,6 +107,8 @@ export function SolveFlow(props: {
           rows={puzzle.rows}
           cols={puzzle.cols}
           givens={puzzle.givens}
+          initialText={props.initialDraft}
+          onDraft={props.onDraft}
           flagged={flagged}
           onChange={(next) => { setPuzzle({ ...puzzle, ...next }); invalidate(); }}
           onInvalidChange={setInvalid}
@@ -113,7 +120,7 @@ export function SolveFlow(props: {
             {outcome.text.map((t) => <p key={t}>{t}</p>)}
             {outcome.saveAnyway && invalid === 0 && (
               <button type="button" class="secondary" disabled={saving}
-                onClick={() => save(outcome.saveAnyway!.puzzle, 'multiple', outcome.saveAnyway!.reference)}>
+                onClick={() => save(outcome.saveAnyway!.puzzle, 'multiple', outcome.saveAnyway!.reference, outcome.saveAnyway!.timedOut)}>
                 Save anyway
               </button>
             )}

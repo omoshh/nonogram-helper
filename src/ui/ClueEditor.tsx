@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'preact/hooks';
 import { FILLED, UNKNOWN, type LineRef } from '../core/types';
 import { formatClueLine, parseClueLine } from '../core/clues';
+import { lineNameCap as lineName } from '../core/text';
 import { GridView } from './GridView';
 
-export const lineName = (l: LineRef) => `${l.axis === 'row' ? 'Row' : 'Column'} ${l.index + 1}`;
 const fieldId = (l: LineRef) => `clue-${l.axis}-${l.index}`;
+
+/** Raw text of every clue field plus the givens. */
+export type Draft = { rows: string[]; cols: string[]; givens: number[] };
 
 type Clues = { rows: number[][]; cols: number[][]; givens: number[] };
 
@@ -15,14 +18,18 @@ export function ClueEditor(props: {
   onChange: (next: Clues) => void;
   /** Number of fields whose text is not a valid clue line. */
   onInvalidChange?: (count: number) => void;
+  initialText?: Draft;
+  onDraft?: (d: Draft) => void;
 }) {
-  const { width, height, rows, cols, givens, flagged, onChange, onInvalidChange } = props;
-  const [rowText, setRowText] = useState(() => rows.map(formatClueLine));
-  const [colText, setColText] = useState(() => cols.map(formatClueLine));
+  const { width, height, rows, cols, givens, flagged, onChange, onInvalidChange, onDraft } = props;
+  const [rowText, setRowText] = useState(() => props.initialText?.rows ?? rows.map(formatClueLine));
+  const [colText, setColText] = useState(() => props.initialText?.cols ?? cols.map(formatClueLine));
   const [showGivens, setShowGivens] = useState(false);
 
   const invalid = [...rowText, ...colText].filter((t) => parseClueLine(t) === null).length;
   useEffect(() => { onInvalidChange?.(invalid); }, [invalid]);
+
+  useEffect(() => { onDraft?.({ rows: rowText, cols: colText, givens }); }, [rowText, colText, givens]);
 
   const isFlagged = (l: LineRef) => flagged.some((f) => f.axis === l.axis && f.index === l.index);
 

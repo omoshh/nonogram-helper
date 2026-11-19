@@ -7,10 +7,10 @@ import { RecordGate, toPuzzle, usePuzzleRecord } from './PuzzlePage';
 export function EditClues(props: { id: string }) {
   const rec = usePuzzleRecord(props.id);
   const save = (old: PuzzleRecord) =>
-    async (solved: Puzzle, status: 'unique' | 'multiple', reference: Uint8Array) => {
+    async (solved: Puzzle, status: 'unique' | 'multiple', reference: Uint8Array, timedOut: boolean) => {
       // lastMarks is left out: marks made against the old clues no longer apply.
-      const { lastMarks: _, ...keep } = old;
-      await putPuzzle({ ...keep, ...solved, reference, status });
+      const { lastMarks: _, timedOut: __, ...keep } = old;
+      await putPuzzle({ ...keep, ...solved, reference, status, ...(timedOut ? { timedOut } : {}) });
       return `#/p/${old.id}`;
     };
   return (

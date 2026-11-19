@@ -13,6 +13,7 @@ export interface PuzzleRecord {
   answerDigits: { cell: number; digit: number }[];
   reference: number[];
   status: 'unique' | 'multiple';
+  timedOut?: boolean; // saved with "Save anyway" after the solver ran out of time
   createdAt: string; // ISO
   thumbnail?: string;
   lastMarks?: number[]; // last confirmed marks, to start the next check from
@@ -93,6 +94,7 @@ function badField(r: any): string | null {
     if (r[k] !== undefined && !isStr(r[k])) return k;
   }
   if (r.solvedDate !== undefined && !(isStr(r.solvedDate) && /^\d{4}-\d{2}-\d{2}$/.test(r.solvedDate))) return 'solvedDate';
+  if (r.timedOut !== undefined && typeof r.timedOut !== 'boolean') return 'timedOut';
   if (r.lastMarks !== undefined && !marks(r.lastMarks, w * h)) return 'lastMarks';
   return null;
 }
