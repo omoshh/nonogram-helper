@@ -20,6 +20,8 @@ export function ClueEditor(props: {
   onInvalidChange?: (count: number) => void;
   initialText?: Draft;
   onDraft?: (d: Draft) => void;
+  /** Object URLs of the clue images cut from a photo, shown above each field. */
+  strips?: { rows: string[]; cols: string[] };
 }) {
   const { width, height, rows, cols, givens, flagged, onChange, onInvalidChange, onDraft } = props;
   const [rowText, setRowText] = useState(() => props.initialText?.rows ?? rows.map(formatClueLine));
@@ -59,6 +61,9 @@ export function ClueEditor(props: {
     return (
       <div key={fieldId(l)} class={`clue-line${isFlagged(l) ? ' flagged' : ''}`}>
         <label for={fieldId(l)}>{lineName(l)}</label>
+        {props.strips?.[l.axis === 'row' ? 'rows' : 'cols'][l.index] && (
+          <img src={props.strips[l.axis === 'row' ? 'rows' : 'cols'][l.index]} alt="" style="max-width:100%" />
+        )}
         <input
           id={fieldId(l)}
           type="text"

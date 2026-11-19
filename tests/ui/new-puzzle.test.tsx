@@ -10,6 +10,8 @@ import { App } from '../../src/ui/App';
 
 const { solveAsync } = vi.hoisted(() => ({ solveAsync: vi.fn() }));
 vi.mock('../../src/worker/client', () => ({ solveAsync }));
+const visionMocks = vi.hoisted(() => ({ detectPhoto: vi.fn(), meshFromCornersAsync: vi.fn(), rotateSession: vi.fn(), stripsAsync: vi.fn(), closeSession: vi.fn() }));
+vi.mock('../../src/worker/visionClient', () => visionMocks);
 
 const stubConfirm = (answer: boolean) => { const fn = vi.fn(() => answer); vi.stubGlobal('confirm', fn); return fn; };
 
@@ -161,4 +163,62 @@ test('No solution with no suspect line says so', async () => {
   enter(2, 2, ['1', '1'], ['1', '1']);
   fireEvent.click(solveButton());
   await screen.findByText('No single line stands out; compare every line with the puzzle.');
+});
+
+describe('from photo', () => {
+  const cols = 4, rows = 3;
+  const xs = new Float32Array((cols + 1) * (rows + 1)), ys = new Float32Array(xs.length);
+  for (let r = 0; r <= rows; r++) for (let c = 0; c <= cols; c++) { xs[r * (cols + 1) + c] = 100 + c * 30; ys[r * (cols + 1) + c] = 100 + r * 30; }
+  const geometry = { rotation: 0 as const, width: 3, height: 2, colClueDepth: 1, rowClueDepth: 1, cols, rows, xs, ys, confidence: 0.9 };
+  const blob = (n: string) => new Blob([n], { type: 'image/png' });
+  const photoSession = { id: 7, width: 1000, height: 800, preview: { width: 500, height: 400 } };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() }));
+    visionMocks.detectPhoto.mockResolvedValue({ session: photoSession, result: { ok: true, geometry, ms: 1 }, ms: 1 });
+    visionMocks.meshFromCornersAsync.mockResolvedValue(geometry);
+    visionMocks.stripsAsync.mockResolvedValue({ rows: [blob('r1'), blob('r2')], cols: [blob('c1'), blob('c2'), blob('c3')], thumbnail: blob('t') });
+    HTMLCanvasElement.prototype.getContext = (() => ({ drawImage() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} })) as never;
+    Element.prototype.getBoundingClientRect = () => ({ left: 0, top: 0, width: 500, height: 400, right: 500, bottom: 400, x: 0, y: 0, toJSON() {} });
+  });
+
+  async function pickAndConfirm() {
+    const { container } = render(<App />);
+    const input = container.querySelector('input[type=file]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [new File(['x'], 'a.jpg')] } });
+    const use = await screen.findByRole('button', { name: 'Use this grid' });
+    await waitFor(() => expect((use as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(use);
+    return container;
+  }
+
+  test('detected size, one strip per line, thumbnail saved, session closed', async () => {
+    const c = await pickAndConfirm();
+    await screen.findByLabelText('Row 2');
+    expect(screen.getByRole('heading', { name: /3 × 2/ })).toBeTruthy();
+    expect(c.querySelectorAll('.clue-line img')).toHaveLength(5);
+    expect(visionMocks.stripsAsync.mock.calls[0][2]).toBe(40);
+    ['1', '1'].forEach((t, i) => fireEvent.input(screen.getByLabelText(`Row ${i + 1}`), { target: { value: i ? '1' : '3' } }));
+    ['1', '2', '1'].forEach((t, i) => fireEvent.input(screen.getByLabelText(`Column ${i + 1}`), { target: { value: i === 1 ? '2' : '1' } }));
+    fireEvent.click(solveButton());
+    await waitFor(() => expect(location.hash).toMatch(/^#\/p\//));
+    const [rec] = await listPuzzles();
+    expect(rec.thumbnail).toMatch(/^data:/);
+    expect(visionMocks.closeSession).toHaveBeenCalledWith(7);
+  });
+
+  test('strip failure: editor still works without images', async () => {
+    visionMocks.stripsAsync.mockRejectedValue(new Error('boom'));
+    const c = await pickAndConfirm();
+    await screen.findByLabelText('Row 2');
+    expect(c.querySelectorAll('.clue-line img')).toHaveLength(0);
+  });
+
+  test('unmount revokes the strip URLs', async () => {
+    await pickAndConfirm();
+    await screen.findByLabelText('Row 2');
+    cleanup(); await new Promise((r) => setTimeout(r, 20));
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(5);
+  });
 });

@@ -26,6 +26,7 @@ export function SolveFlow(props: {
   initialDraft?: Draft;
   /** Called with the raw field text whenever it changes. */
   onDraft?: (d: Draft) => void;
+  strips?: { rows: string[]; cols: string[] };
 }) {
   const [puzzle, setPuzzle] = useState(props.initial);
   const [invalid, setInvalid] = useState(0);
@@ -109,6 +110,7 @@ export function SolveFlow(props: {
           givens={puzzle.givens}
           initialText={props.initialDraft}
           onDraft={props.onDraft}
+          strips={props.strips}
           flagged={flagged}
           onChange={(next) => { setPuzzle({ ...puzzle, ...next }); invalidate(); }}
           onInvalidChange={setInvalid}
