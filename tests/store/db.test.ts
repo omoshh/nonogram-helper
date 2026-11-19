@@ -46,6 +46,14 @@ describe('store', () => {
     expect(await getPuzzle('b')).toEqual(all[1]);
   });
 
+  it('typed-array fields survive export and import as number[]', async () => {
+    await putPuzzle({ ...rec('t'), reference: new Uint8Array([1, 0, 1, 1]), lastMarks: new Uint8Array([0, 1, 2, 1]) });
+    const json = await exportAll();
+    globalThis.indexedDB = new IDBFactory();
+    await importAll(json);
+    expect(await getPuzzle('t')).toEqual(rec('t', { lastMarks: [0, 1, 2, 1] }));
+  });
+
   it('import upserts by id', async () => {
     await putPuzzle(rec('a', { journal: 'Old' }));
     const file = JSON.stringify({ app: 'nonogram-helper', version: 1, puzzles: [rec('a', { journal: 'New' })] });
@@ -68,6 +76,7 @@ describe('store', () => {
     ['empty id', file([{ ...rec('x'), id: '' }]), /\(id\)/],
     ['solvedDate', file([{ ...rec('x'), solvedDate: '3 Feb' }]), /\(solvedDate\)/],
     ['lastMarks', file([{ ...rec('x'), lastMarks: [1] }]), /\(lastMarks\)/],
+    ['duplicate id', file([rec('d'), rec('e'), rec('d')]), /Puzzle 3 .*\(id\)/],
     ['journal type', file([{ ...rec('x'), journal: 5 }]), /\(journal\)/],
   ];
   it.each(bad)('rejects %s and writes nothing', async (_n, json, msg) => {

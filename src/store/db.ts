@@ -41,8 +41,18 @@ export async function listPuzzles(): Promise<PuzzleRecord[]> {
 export const getPuzzle = (id: string): Promise<PuzzleRecord | undefined> =>
   withStore('readonly', (s) => s.get(id));
 
-export const putPuzzle = (r: PuzzleRecord): Promise<void> =>
-  withStore('readwrite', async (s) => { await s.put(r); });
+type PuzzleInput = Omit<PuzzleRecord, 'reference' | 'lastMarks'> & {
+  reference: ArrayLike<number>;
+  lastMarks?: ArrayLike<number>;
+};
+
+// Typed arrays would JSON-export as objects, so store plain arrays.
+export const putPuzzle = (r: PuzzleInput): Promise<void> => {
+  const { lastMarks, ...rest } = r;
+  const rec: PuzzleRecord = { ...rest, reference: Array.from(r.reference) };
+  if (lastMarks !== undefined) rec.lastMarks = Array.from(lastMarks);
+  return withStore('readwrite', async (s) => { await s.put(rec); });
+};
 
 export const deletePuzzle = (id: string): Promise<void> =>
   withStore('readwrite', async (s) => { await s.delete(id); });
@@ -94,11 +104,17 @@ export async function importAll(json: string): Promise<number> {
     throw new Error('This file is not a Nonogram Helper backup.');
   }
   const puzzles = data.puzzles as PuzzleRecord[];
+  const seen = new Set<string>();
   puzzles.forEach((p, i) => {
-    const bad = badField(p);
+    const bad = badField(p) ?? (seen.has(p.id) ? 'id' : null);
     if (bad) throw new Error(`Puzzle ${i + 1} in the file is damaged (${bad}).`);
+    seen.add(p.id);
   });
   // One transaction: all records are written or none.
-  await withStore('readwrite', async (s) => { await Promise.all(puzzles.map((p) => s.put(p))); });
+  try {
+    await withStore('readwrite', async (s) => { await Promise.all(puzzles.map((p) => s.put(p))); });
+  } catch (e) {
+    throw new Error('The backup could not be saved on this device.', { cause: e });
+  }
   return puzzles.length;
 }
