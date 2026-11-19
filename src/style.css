@@ -145,7 +145,7 @@ button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg)
 .result-block p { margin: 8px 0; }
 .result-block button { width: 100%; }
 
-.grid-check { position: relative; touch-action: none; }
+.grid-check { position: relative; }
 .grid-check canvas { display: block; width: 100%; height: auto; }
 .handle {
   position: absolute; width: 44px; height: 44px; padding: 0; min-height: 0;

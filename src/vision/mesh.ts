@@ -18,6 +18,7 @@ export interface TableGeometry {
 const RECT_LONG = 1800; // long side of the rectified table, px
 const MIN_COV = 0.5;    // a line covers at least this fraction of a band
 const WIN = 0.3;        // tracking search window, cells
+const CAP = 1;          // manual corners: a line drifts at most this many cells from the corner homography
 
 export function crossing(g: TableGeometry, col: number, row: number): Point {
   const k = row * (g.cols + 1) + col;
@@ -87,12 +88,13 @@ function pitch(p: Float64Array, span: number): number {
 interface Fam {
   m: Uint8Array; w: number; h: number; p: number; bh: number; nb: number; b0: number;
   seeds: number[]; X: Float64Array; F: Uint8Array; forbid: (k: number, b: number) => boolean;
+  cap: number; // max drift from the seed (manual corners: the seeds are the corner homography's lines)
 }
 
 function family(m: Uint8Array, w: number, h: number, p: number, bh: number, b0At: number): Fam {
   bh = Math.max(4, Math.round(bh));
   const nb = Math.ceil(h / bh), b0 = Math.max(0, Math.min(nb - 1, Math.floor(b0At / bh)));
-  return { m, w, h, p, bh, nb, b0, seeds: [], X: new Float64Array(0), F: new Uint8Array(0), forbid: () => false };
+  return { m, w, h, p, bh, nb, b0, seeds: [], X: new Float64Array(0), F: new Uint8Array(0), forbid: () => false, cap: Infinity };
 }
 
 // Line coverage of band b for x in [lo - 1, hi + 1], sampled along slope dx/dy (lines bend on curved pages):
@@ -152,7 +154,7 @@ function track(f: Fam): void {
         while (r < n && Number.isNaN(disp[r])) r++;
         d = l >= 0 && r < n ? disp[l] + ((disp[r] - disp[l]) * (k - l)) / (r - l) : l >= 0 ? disp[l] : r < n ? disp[r] : v[k];
       } else F[k * nb + b] = 1;
-      X[k * nb + b] = prev[k] + d;
+      X[k * nb + b] = Math.max(f.seeds[k] - f.cap, Math.min(f.seeds[k] + f.cap, prev[k] + d));
     }
   };
   step(f.b0, f.seeds, new Float64Array(n), 0);
@@ -325,7 +327,7 @@ function finish(rect: Rect, V: Fam, Hf: Fam, size: TableSize): TableGeometry {
 
 /** Manual fallback (spec §6.3 step 7): mesh from the 4 grid corners TL,TR,BR,BL and a known size.
  *  Throws on degenerate (collinear / repeated) corners; the corner UI rejects those before calling. */
-export function meshFromCorners(upright: GrayImage, gridCorners: Point[], size: TableSize): TableGeometry {
+export function meshFromCorners(upright: GrayImage, gridCorners: Point[], size: TableSize, again = true): TableGeometry {
   const { width, height, colClueDepth: cd, rowClueDepth: rd } = size, cols = rd + width, rows = cd + height;
   const Hg = homography([{ x: rd, y: cd }, { x: cols, y: cd }, { x: cols, y: rows }, { x: rd, y: rows }], gridCorners);
   const quad = [{ x: 0, y: 0 }, { x: cols, y: 0 }, { x: cols, y: rows }, { x: 0, y: rows }].map((p) => applyH(Hg, p));
@@ -333,8 +335,20 @@ export function meshFromCorners(upright: GrayImage, gridCorners: Point[], size: 
   const V = family(rect.v, w, h, px, py, M + th - 1.5 * py), Hf = family(rect.hT, h, w, py, px, M + tw - 1.5 * px);
   V.seeds = Array.from({ length: cols + 1 }, (_, k) => M + k * px);
   Hf.seeds = Array.from({ length: rows + 1 }, (_, j) => M + j * py);
+  V.cap = CAP * px; Hf.cap = CAP * py;
   track(V); track(Hf);
-  return finish(rect, V, Hf, size);
+  const g = finish(rect, V, Hf, size);
+  // a corner half a cell off is only partly pulled in: re-mesh once from the tracked grid corners
+  if (again) return meshFromCorners(upright, [crossing(g, rd, cd), crossing(g, cols, cd), crossing(g, cols, rows), crossing(g, rd, rows)], size, false);
+  // corners a cell off lock the whole mesh onto the neighbouring lines: the frame test catches that
+  return frameOk(V, Hf) ? g : { ...g, confidence: g.confidence / 2 };
+}
+
+// Every frame line has perpendicular ink just inside it and none just outside (same test as fixEnds).
+function frameOk(V: Fam, Hf: Fam): boolean {
+  const cy = (i: number, j: number) => cross(V, Hf, i, j).y, cx = (j: number, i: number) => cross(V, Hf, i, j).x;
+  return ([[V, Hf, cx], [Hf, V, cy]] as const).every(([f, g, cr]) => [0, f.seeds.length - 1].every((k) =>
+    stripInk(g, f, cr, k, false) >= 0.3 && stripInk(g, f, cr, k, true) < 0.3));
 }
 
 export function detect(photo: GrayImage):

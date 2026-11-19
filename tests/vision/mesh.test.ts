@@ -52,7 +52,28 @@ describe('detect (synthetic, bent pages)', () => {
       const err = maxCrossingErr(g, corners) / cell;
       console.log(`meshFromCorners ${o.width}x${o.height}: max crossing err ${err.toFixed(3)} cells`);
       expect(err).toBeLessThan(0.3);
+      expect(g.confidence).toBeGreaterThanOrEqual(0.6); // no false warning
       expect(crossing(g, rd, cd)).toEqual({ x: g.xs[cd * nx + rd], y: g.ys[cd * nx + rd] });
+    }
+  }, 60_000);
+
+  it('meshFromCorners: grid corners off by 0.7 cell -> within 0.3 cell or confidence below 0.6 (warning)', () => {
+    const moves: [string, (k: number) => [number, number]][] = [
+      ['spin', (k) => [Math.cos(1 + 2 * k), Math.sin(1 + 2 * k)]], ['right', () => [1, 0]], ['down', () => [0, 1]],
+      ['diag', () => [Math.SQRT1_2, Math.SQRT1_2]], ['bottom-right only', (k) => (k === 2 ? [-Math.SQRT1_2, Math.SQRT1_2] : [0, 0])],
+    ];
+    for (const o of SYNTH) {
+      const { img, corners } = synthTable(o);
+      const up = rotate90(img, o.rotation ?? 0);
+      const rd = o.rowClueDepth, cd = o.colClueDepth, nx = rd + o.width + 1, cell = o.cell ?? 24;
+      const at = (i: number, j: number) => corners[j * nx + i];
+      const grid = [at(rd, cd), at(nx - 1, cd), at(nx - 1, cd + o.height), at(rd, cd + o.height)];
+      for (const [name, f] of moves) {
+        const g = meshFromCorners(up, grid.map((p, k) => ({ x: p.x + 0.7 * cell * f(k)[0], y: p.y + 0.7 * cell * f(k)[1] })), o);
+        const err = maxCrossingErr(g, corners) / cell;
+        console.log(`meshFromCorners ${o.width}x${o.height} 0.7 cell ${name}: max crossing err ${err.toFixed(2)} cells, confidence ${g.confidence.toFixed(2)}`);
+        expect(err < 0.3 || g.confidence < 0.6, name).toBe(true);
+      }
     }
   }, 60_000);
 

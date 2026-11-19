@@ -64,7 +64,9 @@ export function GridCheck(props: {
   const box = useRef<HTMLDivElement>(null);
   const seq = useRef(0); // only the latest re-mesh may update the screen
   const sid = useRef<number | null>(null);
-  const active = useRef<number | null>(null); // pointer id of the handle being dragged
+  // the handle being dragged: pointer id, handle centre minus pointer (CSS px), press position, corner before the drag
+  const active = useRef<{ id: number; dx: number; dy: number; x0: number; y0: number; c0: Point } | null>(null);
+  const handedOver = useRef(false); // onConfirm passed the session on: it is no longer ours to close
 
   const apply = (s: PhotoSession, r: { ok: boolean; geometry?: TableGeometry }, known?: Known) => {
     sid.current = s.id;
@@ -87,7 +89,11 @@ export function GridCheck(props: {
       apply(s, result as never, props.knownSize);
       if (result.ok && props.knownSize) remesh(s.id, cornersOf(result.geometry), props.knownSize);
     }).catch(() => { if (live) setError('Could not read the photo.'); });
-    return () => { live = false; };
+    return () => { // leaving the screen or a new file: free the worker's copy of the photo
+      live = false;
+      if (sid.current !== null && !handedOver.current) closeSession(sid.current);
+      sid.current = null;
+    };
   }, [props.file]);
 
   useEffect(() => { if (canvas.current && session) draw(canvas.current, session, geometry); }, [session, geometry]);
@@ -116,14 +122,29 @@ export function GridCheck(props: {
     if (session && depthOk(z.colClueDepth) && depthOk(z.rowClueDepth)) remesh(session.id, corners, z);
   };
 
+  const grab = (i: number, e: PointerEvent) => {
+    const s = session!, r = box.current!.getBoundingClientRect(), c = corners[i];
+    active.current = { id: e.pointerId, dx: r.left + (c.x / s.width) * r.width - e.clientX, dy: r.top + (c.y / s.height) * r.height - e.clientY, x0: e.clientX, y0: e.clientY, c0: c };
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+
   const drag = (i: number, e: PointerEvent, release: boolean) => {
-    const s = session!, r = box.current!.getBoundingClientRect();
+    const s = session!, r = box.current!.getBoundingClientRect(), a = active.current!;
     const clamp = (v: number, max: number) => Math.max(0, Math.min(max, v));
-    const p = { x: clamp(((e.clientX - r.left) / r.width) * s.width, s.width), y: clamp(((e.clientY - r.top) / r.height) * s.height, s.height) };
+    const p = { x: clamp(((e.clientX + a.dx - r.left) / r.width) * s.width, s.width), y: clamp(((e.clientY + a.dy - r.top) / r.height) * s.height, s.height) };
     const next = corners.map((c, j) => (j === i ? p : c));
     setCorners(next);
     if (release) remesh(s.id, next, size);
     else setCrossed(!convex(next));
+  };
+
+  // A tap (moved < 4 px) or a cancelled gesture puts the corner back without a re-mesh.
+  const end = (i: number, e: PointerEvent, cancel: boolean) => {
+    const a = active.current;
+    if (!a || a.id !== e.pointerId) return;
+    if (!cancel && Math.hypot(e.clientX - a.x0, e.clientY - a.y0) >= 4) drag(i, e, true);
+    else { const next = corners.map((c, j) => (j === i ? a.c0 : c)); setCorners(next); setCrossed(!convex(next)); }
+    active.current = null;
   };
 
   const rotate = async () => {
@@ -137,10 +158,10 @@ export function GridCheck(props: {
   const confirm = async () => {
     if (!session) return;
     const g = await remesh(session.id, corners, size);
-    if (g) props.onConfirm({ sessionId: session.id, geometry: g });
+    if (g) { handedOver.current = true; props.onConfirm({ sessionId: session.id, geometry: g }); }
   };
 
-  const cancel = () => { if (sid.current !== null) closeSession(sid.current); props.onCancel(); };
+  const cancel = () => { if (sid.current !== null) closeSession(sid.current); sid.current = null; props.onCancel(); };
 
   if (error) return <main><p class="error">{error}</p><button type="button" onClick={cancel}>Cancel</button></main>;
   if (!session) return <main><p>Reading the photo…</p></main>;
@@ -156,9 +177,9 @@ export function GridCheck(props: {
         {corners.map((c, i) => (
           <button key={i} type="button" class="handle" aria-label={NAMES[i]}
             style={`left: ${(c.x / session.width) * 100}%; top: ${(c.y / session.height) * 100}%`}
-            onPointerDown={(e) => { active.current = e.pointerId; (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }}
-            onPointerMove={(e) => { if (active.current === e.pointerId) drag(i, e, false); }}
-            onPointerUp={(e) => { if (active.current === e.pointerId) { active.current = null; drag(i, e, true); } }} />
+            onPointerDown={(e) => grab(i, e)}
+            onPointerMove={(e) => { if (active.current?.id === e.pointerId) drag(i, e, false); }}
+            onPointerUp={(e) => end(i, e, false)} onPointerCancel={(e) => end(i, e, true)} />
         ))}
       </div>
       <div class="field">

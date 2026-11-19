@@ -28,7 +28,7 @@ beforeEach(() => {
   })) as never;
   Element.prototype.getBoundingClientRect = () => ({ left: 0, top: 0, width: 500, height: 400, right: 500, bottom: 400, x: 0, y: 0, toJSON() {} });
 });
-afterEach(cleanup);
+afterEach(async () => { cleanup(); await new Promise((r) => setTimeout(r, 20)); }); // let unmount effect cleanups (closeSession) land in their own test
 
 const mount = (p: Partial<Parameters<typeof GridCheck>[0]> = {}) => {
   const onConfirm = vi.fn(), onCancel = vi.fn();
@@ -37,8 +37,8 @@ const mount = (p: Partial<Parameters<typeof GridCheck>[0]> = {}) => {
 };
 const use = () => screen.getByRole('button', { name: 'Use this grid' }) as HTMLButtonElement;
 const drag = (name: string, x: number, y: number) => {
-  const h = screen.getByLabelText(name);
-  fireEvent.pointerDown(h, { pointerId: 1, clientX: 0, clientY: 0 });
+  const h = screen.getByLabelText(name), [l, t] = (h.getAttribute('style')!.match(/[\d.]+(?=%)/g) ?? []).map(Number);
+  fireEvent.pointerDown(h, { pointerId: 1, clientX: l * 5, clientY: t * 4 }); // on the handle centre (box 500 x 400)
   fireEvent.pointerMove(h, { pointerId: 1, clientX: x, clientY: y });
   fireEvent.pointerUp(h, { pointerId: 1, clientX: x, clientY: y });
 };
@@ -155,4 +155,68 @@ test('Cancel on the rotate error screen closes the session', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
   expect(closeSession).toHaveBeenCalledWith(7);
   expect(onCancel).toHaveBeenCalled();
+});
+
+// Top-left grid corner is at (130, 130) full-res = (65, 65) CSS px (the box is 500 px wide for a 1000 px photo).
+test('the grab offset is kept: a handle grabbed off-centre moves only by the pointer movement', async () => {
+  mount();
+  await waitFor(() => expect(use().disabled).toBe(false));
+  const h = screen.getByLabelText('Top-left corner');
+  fireEvent.pointerDown(h, { pointerId: 1, clientX: 60, clientY: 40 });
+  fireEvent.pointerMove(h, { pointerId: 1, clientX: 80, clientY: 40 });
+  fireEvent.pointerUp(h, { pointerId: 1, clientX: 80, clientY: 40 });
+  await waitFor(() => expect(meshFromCornersAsync).toHaveBeenCalled());
+  expect(meshFromCornersAsync.mock.calls[0][1][0]).toEqual({ x: 170, y: 130 });
+});
+
+test('a tap on a handle (moved < 4 px) keeps the corner and skips the re-mesh', async () => {
+  mount();
+  await waitFor(() => expect(use().disabled).toBe(false));
+  const h = screen.getByLabelText('Top-left corner');
+  fireEvent.pointerDown(h, { pointerId: 1, clientX: 60, clientY: 40 });
+  fireEvent.pointerMove(h, { pointerId: 1, clientX: 62, clientY: 41 });
+  fireEvent.pointerUp(h, { pointerId: 1, clientX: 62, clientY: 41 });
+  await waitFor(() => expect(h.getAttribute('style')).toContain('left: 13%'));
+  expect(meshFromCornersAsync).not.toHaveBeenCalled();
+});
+
+test('a cancelled drag puts the corner back without a re-mesh', async () => {
+  mount();
+  await waitFor(() => expect(use().disabled).toBe(false));
+  const h = screen.getByLabelText('Top-left corner');
+  fireEvent.pointerDown(h, { pointerId: 1, clientX: 50, clientY: 50 });
+  fireEvent.pointerMove(h, { pointerId: 1, clientX: 450, clientY: 350 }); // crossed while dragging
+  await screen.findByText('The corners are crossed.');
+  fireEvent.pointerCancel(h, { pointerId: 1, clientX: 0, clientY: 0 });
+  await waitFor(() => expect(h.getAttribute('style')).toContain('left: 13%; top: 16.25%'));
+  expect(screen.queryByText('The corners are crossed.')).toBeNull();
+  expect(meshFromCornersAsync).not.toHaveBeenCalled();
+});
+
+test('leaving the screen closes the session once', async () => {
+  mount();
+  await waitFor(() => expect(use().disabled).toBe(false));
+  cleanup(); // the unmount effect cleanup runs after the render queue flushes
+  await waitFor(() => expect(closeSession).toHaveBeenCalledWith(7));
+  expect(closeSession).toHaveBeenCalledTimes(1);
+});
+
+test('after Use this grid, leaving the screen does not close the handed-over session', async () => {
+  const { onConfirm } = mount();
+  await waitFor(() => expect(use().disabled).toBe(false));
+  fireEvent.click(use());
+  await waitFor(() => expect(onConfirm).toHaveBeenCalled());
+  cleanup(); await new Promise((r) => setTimeout(r, 20));
+  expect(closeSession).not.toHaveBeenCalled();
+});
+
+test('a new file closes the old session', async () => {
+  const p = { onConfirm: vi.fn(), onCancel: vi.fn() };
+  const { rerender } = render(<GridCheck file={file} {...p} />);
+  await waitFor(() => expect(use().disabled).toBe(false));
+  detectPhoto.mockResolvedValue({ ...ok(), session: { ...session, id: 8 } });
+  rerender(<GridCheck file={new File(['y'], 'b.jpg')} {...p} />);
+  await waitFor(() => expect(closeSession).toHaveBeenCalledWith(7));
+  await waitFor(() => expect(detectPhoto).toHaveBeenCalledTimes(2));
+  expect(closeSession).not.toHaveBeenCalledWith(8);
 });
