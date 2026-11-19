@@ -1,4 +1,4 @@
-import { solve } from '../../src/core/solver';
+import { solve, hasSolution } from '../../src/core/solver';
 import { UNKNOWN, FILLED, EMPTY, type Puzzle } from '../../src/core/types';
 
 const S = (grid: Uint8Array, w: number) => {
@@ -179,4 +179,25 @@ test('out of time: reports timedOut and keeps only cells proven in all solutions
     { timeLimitMs: 0 });
   expect(probed.timedOut).toBe(true);
   expect(probed.status).toBe('multiple');
+});
+
+test('hasSolution', () => {
+  const empty = new Uint8Array(25);
+  expect(hasSolution(P5, empty)).toBe(true);
+  expect([...empty]).toEqual(Array(25).fill(UNKNOWN)); // input untouched
+  const wrong = new Uint8Array(25);
+  wrong[4] = FILLED;
+  expect(hasSolution(P5, wrong)).toBe(false);
+  // 3×4: rows [1],[2],[],[1]; cols [1],[1],[1,1]. Each mark fits some solution, not all together.
+  const p: Puzzle = { width: 3, height: 4, rows: [[1], [2], [], [1]], cols: [[1], [1], [1, 1]], givens: [] };
+  expect(hasSolution(p, Uint8Array.from([2, 0, 2, 2, 0, 1, 2, 0, 2, 2, 0, 1]))).toBe(false);
+  expect(hasSolution(p, Uint8Array.from([0, 0, 0, 2, 0, 1, 0, 0, 0, 0, 0, 0]))).toBe(true);
+  // Needs probing (line solving alone stalls), so a stopped clock times it out.
+  const probed: Puzzle = { width: 4, height: 3, rows: [[1, 1], [2], []], cols: [[1], [1], [1], [1]], givens: [] };
+  let reads = 0;
+  const spy = vi.spyOn(performance, 'now').mockImplementation(() => (++reads <= 1 ? 0 : 1e9));
+  const r = hasSolution(probed, new Uint8Array(12));
+  spy.mockRestore();
+  expect(r).toBe('timeout');
+  expect(hasSolution(probed, new Uint8Array(12))).toBe(true);
 });

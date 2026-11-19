@@ -61,3 +61,17 @@ test('line hint level 3 on a line without blocks', () => {
   expect(hintText(P5, h, 3))
     .toBe('Column 5 (0): with the cells you have already marked, every possible placement of the blocks gives these cells.');
 });
+test('conflict and ambiguous texts', () => {
+  const c = { kind: 'conflict' as const, cells: [0] };
+  expect(hintText(P5, c, 1)).toBe('Your marks do not fit any solution, although none of them is a clear mistake.');
+  for (const level of [2, 3] as const) {
+    expect(hintText(P5, c, level))
+      .toBe('Check the highlighted cells: the clues allow more than one answer there, but your marks there do not fit together.');
+  }
+  const a = { kind: 'ambiguous' as const, cells: [0] };
+  expect(hintText(P5, a, 1)).toBe('The clues do not decide the remaining cells.');
+  for (const level of [2, 3] as const) {
+    expect(hintText(P5, a, level))
+      .toBe('The highlighted cells have more than one valid answer. Any choice that fits the clues is correct.');
+  }
+});

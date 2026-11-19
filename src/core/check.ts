@@ -6,7 +6,7 @@ export interface Mistakes {
   byCol: number[];
 }
 
-/** A mark that contradicts a marks reference cell (a dot on a given included). */
+/** A mark that contradicts a known reference cell (a dot on a given included). */
 export function findMistakes(p: Puzzle, marks: Uint8Array, reference: Uint8Array): Mistakes {
   const m: Mistakes = { cells: [], byRow: Array(p.height).fill(0), byCol: Array(p.width).fill(0) };
   for (let i = 0; i < marks.length; i++) {

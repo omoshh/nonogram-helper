@@ -130,6 +130,24 @@ function search(L: Lines, grid: Uint8Array, limit: number, deadline: number, fou
   }
 }
 
+/** Does a solution exist that agrees with every known cell of `grid`? Stops at the first one.
+ *  Does not change `grid`. 'timeout' = undecided within the time limit (default 1000 ms). */
+export function hasSolution(p: Puzzle, grid: Uint8Array, opts: { timeLimitMs?: number } = {}): boolean | 'timeout' {
+  const deadline = performance.now() + (opts.timeLimitMs ?? 1000);
+  const L = linesOf(p);
+  const work = grid.slice();
+  if (run(L, work, L.refs.map((_, i) => i)) !== -1) return false;
+  const found: Uint8Array[] = [];
+  try {
+    if (!probe(L, work, deadline)) return false;
+    search(L, work, 1, deadline, found);
+  } catch (e) {
+    if (!(e instanceof TimeUp)) throw e;
+    return 'timeout';
+  }
+  return found.length > 0;
+}
+
 function suspectLines(L: Lines, reference: Uint8Array): LineRef[] {
   return L.refs.filter((_, li) => L.cells[li].some((c) => reference[c] === UNKNOWN));
 }

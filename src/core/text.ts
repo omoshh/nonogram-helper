@@ -5,6 +5,10 @@ import type { Hint } from './hint';
 
 const DONE = 'All filled cells are marked. The puzzle is solved.';
 const STUCK = 'Single lines and single assumptions do not help here.';
+const CONFLICT_1 = 'Your marks do not fit any solution, although none of them is a clear mistake.';
+const CONFLICT_2 = 'Check the highlighted cells: the clues allow more than one answer there, but your marks there do not fit together.';
+const AMBIGUOUS_1 = 'The clues do not decide the remaining cells.';
+const AMBIGUOUS_2 = 'The highlighted cells have more than one valid answer. Any choice that fits the clues is correct.';
 
 const capital = (s: string) => s[0].toUpperCase() + s.slice(1);
 const lineName = (line: LineRef) => `${line.axis === 'row' ? 'row' : 'column'} ${line.index + 1}`;
@@ -60,6 +64,10 @@ export function hintText(p: Puzzle, h: Hint, level: 1 | 2 | 3): string {
       const assumed = h.value === FILLED ? 'empty' : 'filled';
       return `If ${name} were ${assumed}, ${lineName(h.contradiction)} would have no valid placement.`;
     }
+    case 'conflict':
+      return level === 1 ? CONFLICT_1 : CONFLICT_2;
+    case 'ambiguous':
+      return level === 1 ? AMBIGUOUS_1 : AMBIGUOUS_2;
     case 'reveal':
       return level === 1 ? STUCK : `The solution has ${cellName(p, h.cell)} ${valueName(h.value)}.`;
   }
