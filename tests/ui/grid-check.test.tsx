@@ -109,6 +109,35 @@ test('changing the size re-meshes with the new size', async () => {
   expect(meshFromCornersAsync.mock.calls[0][2]).toMatchObject({ width: 20, height: 15 });
 });
 
+test('Other shows width and height; a valid size re-meshes with it', async () => {
+  mount();
+  await waitFor(() => expect(use().disabled).toBe(false));
+  fireEvent.change(screen.getByLabelText('Size'), { target: { value: 'other' } });
+  fireEvent.input(screen.getByLabelText('Width'), { target: { value: '35' } });
+  fireEvent.input(screen.getByLabelText('Height'), { target: { value: '50' } });
+  await waitFor(() => expect(meshFromCornersAsync.mock.lastCall?.[2]).toMatchObject({ width: 35, height: 50 }));
+});
+
+test('Other: a side outside 1–50 disables the button and skips the re-mesh', async () => {
+  mount();
+  await waitFor(() => expect(use().disabled).toBe(false));
+  fireEvent.change(screen.getByLabelText('Size'), { target: { value: 'other' } });
+  const calls = meshFromCornersAsync.mock.calls.length;
+  fireEvent.input(screen.getByLabelText('Width'), { target: { value: '51' } });
+  expect(use().disabled).toBe(true);
+  fireEvent.input(screen.getByLabelText('Width'), { target: { value: '0' } });
+  expect(use().disabled).toBe(true);
+  expect(meshFromCornersAsync.mock.calls.length).toBe(calls);
+});
+
+test('an unknown detected size opens Other with its numbers', async () => {
+  detectPhoto.mockResolvedValue(ok(geo(0.4, 34, 49)));
+  mount();
+  await waitFor(() => expect((screen.getByLabelText('Size') as HTMLSelectElement).value).toBe('other'));
+  expect((screen.getByLabelText('Width') as HTMLInputElement).value).toBe('34');
+  expect((screen.getByLabelText('Height') as HTMLInputElement).value).toBe('49');
+});
+
 test('a rejecting re-mesh shows the crossed message instead of crashing', async () => {
   mount();
   await waitFor(() => expect(use().disabled).toBe(false));

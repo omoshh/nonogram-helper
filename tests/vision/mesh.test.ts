@@ -120,8 +120,8 @@ describe('detect (synthetic, bent pages)', () => {
     expect(r.geometry.confidence).toBeLessThan(0.5);
   }, 60_000);
 
-  it('unknown sizes: 24x35 snaps to 25x35, 35x50 is kept; both with lowered confidence', () => {
-    for (const [w, h, ew, eh] of [[24, 35, 25, 35], [35, 50, 35, 50]]) {
+  it('unknown sizes: 24x35 snaps to 25x35, 40x50 is kept; both with lowered confidence', () => {
+    for (const [w, h, ew, eh] of [[24, 35, 25, 35], [40, 50, 40, 50]]) {
       const { img } = synthTable({ width: w, height: h, colClueDepth: 6, rowClueDepth: 5, perspective: 0.03, noise: 4, seed: 7 });
       const r = detect(img);
       expect(r.ok).toBe(true);

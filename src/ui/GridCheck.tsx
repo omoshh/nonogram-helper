@@ -9,6 +9,11 @@ type Known = { width: number; height: number; colClueDepth: number; rowClueDepth
 const DEFAULT: Known = { width: 25, height: 30, colClueDepth: 8, rowClueDepth: 8 }; // 25×30 is the most common size
 const NAMES = ['Top-left corner', 'Top-right corner', 'Bottom-right corner', 'Bottom-left corner'];
 const sizeKey = (w: number, h: number) => `${w}x${h}`;
+const isKnown = (z: { width: number; height: number }) => KNOWN_SIZES.some((k) => k.width === z.width && k.height === z.height);
+const MIN_SIDE = 1, MAX_SIDE = 50; // 50: the largest side detection has handled on real photos (cells ≈ 30 px)
+const sideOk = (n: number) => Number.isInteger(n) && n >= MIN_SIDE && n <= MAX_SIDE;
+const depthOk = (n: number) => Number.isInteger(n) && n >= 1;
+const valid = (z: Known) => sideOk(z.width) && sideOk(z.height) && depthOk(z.colClueDepth) && depthOk(z.rowClueDepth);
 
 const sizeOf = (g: TableGeometry): Known => ({ width: g.width, height: g.height, colClueDepth: g.colClueDepth, rowClueDepth: g.rowClueDepth });
 const cornersOf = (g: TableGeometry): Point[] => [
@@ -55,6 +60,7 @@ export function GridCheck(props: {
   const [session, setSession] = useState<PhotoSession | null>(null);
   const [corners, setCorners] = useState<Point[]>([]);
   const [size, setSize] = useState<Known>(DEFAULT);
+  const [other, setOther] = useState(false);
   const [geometry, setGeometry] = useState<TableGeometry | null>(null);
   const [failed, setFailed] = useState(false);
   const [crossed, setCrossed] = useState(false);
@@ -73,10 +79,12 @@ export function GridCheck(props: {
     setSession(s);
     setCrossed(false);
     if (r.ok && r.geometry) {
-      setCorners(cornersOf(r.geometry)); setSize(known ?? sizeOf(r.geometry));
+      const z = known ?? sizeOf(r.geometry);
+      setCorners(cornersOf(r.geometry)); setSize(z); setOther(!isKnown(z));
       setGeometry(r.geometry); setFailed(false);
     } else {
-      setCorners(defaultCorners(s)); setSize(known ?? DEFAULT);
+      const z = known ?? DEFAULT;
+      setCorners(defaultCorners(s)); setSize(z); setOther(!isKnown(z));
       setGeometry(null); setFailed(true);
     }
   };
@@ -98,8 +106,7 @@ export function GridCheck(props: {
 
   useEffect(() => { if (canvas.current && session) draw(canvas.current, session, geometry); }, [session, geometry]);
 
-  const depthOk = (n: number) => Number.isInteger(n) && n >= 1;
-  const sizeOk = depthOk(size.colClueDepth) && depthOk(size.rowClueDepth);
+  const sizeOk = valid(size);
 
   // Returns the new geometry, or null when the quad is crossed / the worker rejects it / a newer call superseded this one.
   async function remesh(id: number, c: Point[], z: Known): Promise<TableGeometry | null> {
@@ -119,7 +126,7 @@ export function GridCheck(props: {
 
   const change = (z: Known) => {
     setSize(z);
-    if (session && depthOk(z.colClueDepth) && depthOk(z.rowClueDepth)) remesh(session.id, corners, z);
+    if (session && valid(z)) remesh(session.id, corners, z);
   };
 
   const grab = (i: number, e: PointerEvent) => {
@@ -134,7 +141,7 @@ export function GridCheck(props: {
     const p = { x: clamp(((e.clientX + a.dx - r.left) / r.width) * s.width, s.width), y: clamp(((e.clientY + a.dy - r.top) / r.height) * s.height, s.height) };
     const next = corners.map((c, j) => (j === i ? p : c));
     setCorners(next);
-    if (release) remesh(s.id, next, size);
+    if (release && valid(size)) remesh(s.id, next, size);
     else setCrossed(!convex(next));
   };
 
@@ -166,7 +173,7 @@ export function GridCheck(props: {
   if (error) return <main><p class="error">{error}</p><button type="button" onClick={cancel}>Cancel</button></main>;
   if (!session) return <main><p>Reading the photo…</p></main>;
 
-  const known = KNOWN_SIZES.some((k) => k.width === size.width && k.height === size.height);
+  const num = (e: Event) => Number((e.target as HTMLInputElement).value);
   return (
     <main>
       {failed && <p class="error">Could not find the puzzle in this photo. Move the 4 corners onto the grid corners.</p>}
@@ -184,12 +191,31 @@ export function GridCheck(props: {
       </div>
       <div class="field">
         <label for="gc-size">Size</label>
-        <select id="gc-size" value={sizeKey(size.width, size.height)}
-          onChange={(e) => { const [w, h] = (e.target as HTMLSelectElement).value.split('x').map(Number); change({ ...size, width: w, height: h }); }}>
-          {!known && <option value={sizeKey(size.width, size.height)}>{size.width} × {size.height}</option>}
+        <select id="gc-size" value={other ? 'other' : sizeKey(size.width, size.height)}
+          onChange={(e) => {
+            const v = (e.target as HTMLSelectElement).value;
+            if (v === 'other') { setOther(true); return; } // keep the current numbers in the fields
+            const [w, h] = v.split('x').map(Number);
+            setOther(false); change({ ...size, width: w, height: h });
+          }}>
           {KNOWN_SIZES.map((k) => <option key={sizeKey(k.width, k.height)} value={sizeKey(k.width, k.height)}>{k.width} × {k.height}</option>)}
+          <option value="other">Other…</option>
         </select>
       </div>
+      {other && (
+        <div class="field-row">
+          <div class="field">
+            <label for="gc-w">Width</label>
+            <input id="gc-w" type="number" inputMode="numeric" min={MIN_SIDE} max={MAX_SIDE} value={size.width}
+              onInput={(e) => change({ ...size, width: num(e) })} />
+          </div>
+          <div class="field">
+            <label for="gc-h">Height</label>
+            <input id="gc-h" type="number" inputMode="numeric" min={MIN_SIDE} max={MAX_SIDE} value={size.height}
+              onInput={(e) => change({ ...size, height: num(e) })} />
+          </div>
+        </div>
+      )}
       <div class="field-row">
         <div class="field">
           <label for="gc-rd">Row clue depth</label>

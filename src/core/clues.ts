@@ -24,4 +24,5 @@ export const KNOWN_SIZES: ReadonlyArray<{ width: number; height: number }> = [
   { width: 25, height: 40 },
   { width: 35, height: 25 },
   { width: 50, height: 35 },
+  { width: 35, height: 50 }, // second journal
 ];
