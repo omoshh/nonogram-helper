@@ -67,6 +67,38 @@ describe('detect (synthetic, bent pages)', () => {
     expect(meshTable(img, [{ x: NaN, y: 0 }, { x: 700, y: 0 }, { x: 700, y: 500 }, { x: 0, y: 500 }])).toBeNull();
   });
 
+  it('meshTable: a collinear (degenerate) quad -> null, no throw', () => {
+    const { img } = synthTable({ width: 25, height: 30, colClueDepth: 5, rowClueDepth: 4, seed: 1 });
+    expect(meshTable(img, [{ x: 10, y: 10 }, { x: 200, y: 200 }, { x: 400, y: 400 }, { x: 600, y: 600 }])).toBeNull();
+    expect(meshTable(img, [{ x: 10, y: 10 }, { x: 10, y: 10 }, { x: 400, y: 400 }, { x: 10, y: 600 }])).toBeNull();
+  });
+
+  it('corner box that cannot be read (filled black) -> confidence halved below 0.5', () => {
+    const o: SynthOptions = { width: 25, height: 35, colClueDepth: 9, rowClueDepth: 7, perspective: 0.03, noise: 4, seed: 9 };
+    const { img, corners } = synthTable(o);
+    const nx = o.rowClueDepth + o.width + 1, at = (i: number, j: number) => corners[j * nx + i];
+    const [a, b] = [at(0, 0), at(o.rowClueDepth, o.colClueDepth)];
+    for (let y = Math.round(a.y) - 2; y <= b.y + 2; y++) for (let x = Math.round(a.x) - 2; x <= b.x + 2; x++) img.data[y * img.width + x] = 20;
+    const r = detect(img);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    console.log(`black box: depths ${r.geometry.colClueDepth},${r.geometry.rowClueDepth}, confidence ${r.geometry.confidence.toFixed(3)}`);
+    expect(r.geometry.confidence).toBeLessThan(0.5);
+  }, 60_000);
+
+  it('stray stroke in the corner box misreads a depth into a known size -> confidence halved below 0.5', () => {
+    // true 20x30 with row clue depth 6; a stroke on line 1 in the top box row reads as depth 1 -> 25x30 (known)
+    const o: SynthOptions = { width: 20, height: 30, colClueDepth: 5, rowClueDepth: 6, perspective: 0.03, noise: 4, seed: 9 };
+    const { img, corners } = synthTable(o);
+    const nx = o.rowClueDepth + o.width + 1, [p, q] = [corners[1], corners[nx + 1]];
+    for (let y = Math.round(p.y); y <= q.y; y++) for (let d = -1; d <= 1; d++) img.data[y * img.width + Math.round(p.x + ((q.x - p.x) * (y - p.y)) / (q.y - p.y)) + d] = 0;
+    const r = detect(img);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    console.log(`stray stroke: ${r.geometry.width}x${r.geometry.height}, depths ${r.geometry.colClueDepth},${r.geometry.rowClueDepth}, confidence ${r.geometry.confidence.toFixed(3)}`);
+    expect(r.geometry.confidence).toBeLessThan(0.5);
+  }, 60_000);
+
   it('unknown sizes: 24x35 snaps to 25x35, 35x50 is kept; both with lowered confidence', () => {
     for (const [w, h, ew, eh] of [[24, 35, 25, 35], [35, 50, 35, 50]]) {
       const { img } = synthTable({ width: w, height: h, colClueDepth: 6, rowClueDepth: 5, perspective: 0.03, noise: 4, seed: 7 });
@@ -123,6 +155,7 @@ describe.skipIf(!present.length)('detect (real photos)', () => {
       rows.push(line);
     }
     console.log(rows.join('\n') + `\nmain journal: ${pass}/${main} pass`);
+    if (present.length === PHOTOS.length) expect(main).toBe(15);
     expect(pass).toBeGreaterThanOrEqual(main - 1);
   }, 600_000);
 

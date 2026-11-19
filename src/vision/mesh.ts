@@ -258,7 +258,9 @@ function fixEnds(V: Fam, Hf: Fam): void {
 /** Mesh from the outer table quad (Task 4), or null if no line lattice is found in it. rotation is 0 (detect sets it). */
 export function meshTable(upright: GrayImage, quad: Point[]): TableGeometry | null {
   if (quad.length !== 4 || quad.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y))) return null;
-  const rect = rectify(upright, quad), { w, h, M, tw, th, px, py } = rect;
+  let rect: Rect;
+  try { rect = rectify(upright, quad); } catch { return null; } // collinear or repeated corners
+  const { w, h, M, tw, th, px, py } = rect;
   // start bands 1.5 cells inside the bottom (right) side: every line crosses them
   const V = family(rect.v, w, h, px, py, M + th - 1.5 * py), Hf = family(rect.hT, h, w, py, px, M + tw - 1.5 * px);
   V.seeds = latticeSeeds(V); Hf.seeds = latticeSeeds(Hf);
@@ -276,12 +278,24 @@ export function meshTable(upright: GrayImage, quad: Point[]): TableGeometry | nu
   const rd = firstInked(V, (k) => cross(V, Hf, k, 0).y, py, cols);
   const cd = firstInked(Hf, (j) => cross(V, Hf, 0, j).x, px, rows);
   const g = finish(rect, V, Hf, { width: cols - rd, height: rows - cd, colClueDepth: cd, rowClueDepth: rd });
-  if (KNOWN_SIZES.some((s) => s.width === g.width && s.height === g.height)) return g;
-  const near = KNOWN_SIZES.find((s) => Math.abs(s.width - g.width) <= 1 && Math.abs(s.height - g.height) <= 1);
+  // a depth misread by 5 can still give a known size: an implausible corner box halves confidence too
+  const exact = KNOWN_SIZES.some((s) => s.width === g.width && s.height === g.height);
+  if (exact && boxScore(V, Hf, rd, cd) >= 0.9) return g;
+  const near = exact ? undefined : KNOWN_SIZES.find((s) => Math.abs(s.width - g.width) <= 1 && Math.abs(s.height - g.height) <= 1);
   if (!near) return { ...g, confidence: g.confidence / 2 };
   const grid = [crossing(g, rd, cd), crossing(g, cols, cd), crossing(g, cols, rows), crossing(g, rd, rows)];
   const s = meshFromCorners(upright, grid, { ...near, colClueDepth: cd, rowClueDepth: rd });
   return { ...s, confidence: s.confidence / 2 };
+}
+
+// Share of corner-box cell sides that look right: lines inside the box carry no ink, its two inner
+// edges and the lines leaving it (one cell below / right of it) do.
+function boxScore(V: Fam, Hf: Fam, rd: number, cd: number): number {
+  let ok = 0, n = 0;
+  const side = (f: Fam, k: number, a: number, b: number, ink: boolean) => { n++; if ((inkAlong(f, k, a, b) >= 0.5) === ink) ok++; };
+  for (let k = 1; k <= rd; k++) for (let j = 0; j <= cd; j++) side(V, k, cross(V, Hf, k, j).y, cross(V, Hf, k, j + 1).y, k === rd || j === cd);
+  for (let j = 1; j <= cd; j++) for (let k = 0; k <= rd; k++) side(Hf, j, cross(V, Hf, k, j).x, cross(V, Hf, k + 1, j).x, j === cd || k === rd);
+  return ok / n;
 }
 
 // Second tracking pass with the corner box and the outside of the frame forbidden, then the crossings.
@@ -309,7 +323,8 @@ function finish(rect: Rect, V: Fam, Hf: Fam, size: TableSize): TableGeometry {
   return { rotation: 0, ...size, cols, rows, xs, ys, confidence: found / total };
 }
 
-/** Manual fallback (spec §6.3 step 7): mesh from the 4 grid corners TL,TR,BR,BL and a known size. */
+/** Manual fallback (spec §6.3 step 7): mesh from the 4 grid corners TL,TR,BR,BL and a known size.
+ *  Throws on degenerate (collinear / repeated) corners; the corner UI rejects those before calling. */
 export function meshFromCorners(upright: GrayImage, gridCorners: Point[], size: TableSize): TableGeometry {
   const { width, height, colClueDepth: cd, rowClueDepth: rd } = size, cols = rd + width, rows = cd + height;
   const Hg = homography([{ x: rd, y: cd }, { x: cols, y: cd }, { x: cols, y: rows }, { x: rd, y: rows }], gridCorners);
@@ -328,7 +343,8 @@ export function detect(photo: GrayImage):
   const loc = locateTable(photo);
   if (!loc.ok) return { ok: false, reason: loc.reason };
   const { rotation, quad } = loc.value;
-  const g = meshTable(rotate90(photo, rotation), quad);
+  let g: TableGeometry | null = null;
+  try { g = meshTable(rotate90(photo, rotation), quad); } catch { /* never throw: report like no lattice */ }
   if (!g) return { ok: false, reason: 'no-lattice', rotation };
   return { ok: true, geometry: { ...g, rotation }, ms: performance.now() - t0 };
 }
