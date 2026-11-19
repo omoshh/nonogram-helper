@@ -6,3 +6,5 @@ dist/
 /partial-solve/
 /solved-pair/
 /PXL_*.jpg
+# Local working notes (design spec, plans): never commit
+/docs/
