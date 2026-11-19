@@ -18,12 +18,14 @@ test('unique', () => {
   const r = solve(P5);
   expect(r.status).toBe('unique');
   expect(S(r.reference!, 5)).toBe('####x/#xx#x/####x/#xxxx/#xxxx');
+  expect(r.timedOut).toBe(false);
 });
 test('multiple: 2×2 diagonal', () => {
   const r = solve({ width: 2, height: 2, rows: [[1], [1]], cols: [[1], [1]], givens: [] });
   expect(r.status).toBe('multiple');
   expect([...r.reference!]).toEqual([UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN]);
   expect(r.suspect).toHaveLength(4);
+  expect(r.timedOut).toBe(false);
 });
 test('multiple: only the ambiguous part is unknown', () => {
   // 2×4: row 0 full, row 1 empty, rows 2–3 a diagonal that can go either way
@@ -41,6 +43,7 @@ test('none, with suspect line', () => {
   expect(r.status).toBe('none');
   expect(r.reference).toBeNull();
   expect(r.suspect.length).toBeGreaterThan(0);
+  expect(r.timedOut).toBe(false);
 });
 
 // --- brute-force cross-check ---
@@ -108,6 +111,7 @@ test('matches brute force on random small puzzles', () => {
     const sols = bruteSolutions(p);
     const r = solve(p);
     const label = JSON.stringify(p);
+    expect(r.timedOut, label).toBe(false);
     if (sols.length === 0) {
       expect(r.status, label).toBe('none');
       expect(r.reference, label).toBeNull();
@@ -135,10 +139,44 @@ test('matches brute force on random small puzzles', () => {
   expect(seen.none).toBeGreaterThan(0);
 });
 
-test('out of time: keeps only the logically forced cells', () => {
-  const r = solve({ width: 2, height: 4, rows: [[2], [], [1], [1]], cols: [[1, 1], [1, 1]], givens: [] },
+test('out of time: reports timedOut and keeps only cells proven in all solutions', () => {
+  // Cut the time limit after the k-th clock read, for every k, so every phase (probing, search,
+  // common-cells check) gets interrupted at every point.
+  const puzzles: Puzzle[] = [ // small enough to brute-force
+    { width: 2, height: 2, rows: [[1], [1]], cols: [[1], [1]], givens: [] },
+    { width: 2, height: 4, rows: [[2], [], [1], [1]], cols: [[1, 1], [1, 1]], givens: [] },
+    { width: 3, height: 4, rows: [[1], [1], [1], []], cols: [[1], [1], [1]], givens: [] },
+    { width: 4, height: 4, rows: [[1, 1], [1], [1], [2]], cols: [[1], [2], [1], [1, 1]], givens: [] },
+    // Has common cells that probing cannot prove, so the common-cells check has to search.
+    { width: 5, height: 3, rows: [[1, 1], [1], [2]], cols: [[1], [1], [1], [1], [1]], givens: [] },
+  ];
+  let timeouts = 0;
+  for (const p of puzzles) {
+    const label = JSON.stringify(p);
+    const sols = bruteSolutions(p);
+    const full = solve(p);
+    for (let k = 1; ; k++) {
+      let reads = 0;
+      const spy = vi.spyOn(performance, 'now').mockImplementation(() => (++reads <= k ? 0 : 1e9));
+      const r = solve(p, { timeLimitMs: 1000 });
+      spy.mockRestore();
+      if (!r.timedOut) {
+        expect({ ...r, ms: 0 }, label).toEqual({ ...full, ms: 0 });
+        break;
+      }
+      timeouts++;
+      expect(r.status, label).toBe('multiple');
+      r.reference!.forEach((v, i) => {
+        if (v !== UNKNOWN) for (const s of sols) expect(s[i], `${label} k=${k} cell ${i}`).toBe(v);
+      });
+    }
+  }
+  expect(timeouts).toBeGreaterThan(5);
+  // A puzzle solved by logic alone never times out.
+  expect(solve(P5, { timeLimitMs: 0 }).timedOut).toBe(false);
+  // Probing respects the limit: this unique puzzle needs probing (line solving alone stalls).
+  const probed = solve({ width: 4, height: 3, rows: [[1, 1], [2], []], cols: [[1], [1], [1], [1]], givens: [] },
     { timeLimitMs: 0 });
-  expect(r.status).toBe('multiple');
-  expect([...r.reference!]).toEqual([FILLED, FILLED, EMPTY, EMPTY, UNKNOWN, UNKNOWN, UNKNOWN, UNKNOWN]);
-  expect(solve(P5, { timeLimitMs: 0 }).status).toBe('unique'); // solved by logic, no search needed
+  expect(probed.timedOut).toBe(true);
+  expect(probed.status).toBe('multiple');
 });

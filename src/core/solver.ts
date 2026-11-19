@@ -6,6 +6,8 @@ export interface SolveResult {
   reference: Uint8Array | null; // unique: the solution; multiple: cells equal in ALL solutions, others UNKNOWN; none: null
   suspect: LineRef[];
   ms: number;
+  /** The time limit cut probing, search or the common-cells check; reference holds only proven cells. */
+  timedOut: boolean;
 }
 
 /** Lines indexed like allLines(): rows 0..h-1, then cols h..h+w-1. */
@@ -78,14 +80,18 @@ export function propagate(p: Puzzle, grid: Uint8Array): { ok: true } | { ok: fal
 
 const opposite = (v: number) => (v === FILLED ? EMPTY : FILLED);
 
+class TimeUp extends Error {}
+
 /** For each unknown cell try both values; a contradiction forces the other one. Repeats until
- *  no change. Mutates grid. Returns false if the grid has no solution. */
-function probe(L: Lines, grid: Uint8Array): boolean {
+ *  no change. Mutates grid (only with proven values). Returns false if the grid has no solution.
+ *  Throws TimeUp after the deadline. */
+function probe(L: Lines, grid: Uint8Array, deadline: number): boolean {
   let changed = true;
   while (changed) {
     changed = false;
     for (let cell = 0; cell < grid.length; cell++) {
       if (grid[cell] !== UNKNOWN) continue;
+      if (performance.now() > deadline) throw new TimeUp();
       for (const value of [FILLED, EMPTY]) {
         if (assign(L, grid.slice(), cell, value)) continue;
         if (!assign(L, grid, cell, opposite(value))) return false;
@@ -96,8 +102,6 @@ function probe(L: Lines, grid: Uint8Array): boolean {
   }
   return true;
 }
-
-class TimeUp extends Error {}
 
 /** Depth-first search from a propagated grid. Collects up to `limit` solutions.
  *  Throws TimeUp after the deadline. */
@@ -134,20 +138,22 @@ export function solve(p: Puzzle, opts: { timeLimitMs?: number } = {}): SolveResu
   const start = performance.now();
   const deadline = start + (opts.timeLimitMs ?? 5000);
   const L = linesOf(p);
+  let timedOut = false;
   const done = (status: SolveResult['status'], reference: Uint8Array | null, suspect: LineRef[]): SolveResult =>
-    ({ status, reference, suspect, ms: performance.now() - start });
+    ({ status, reference, suspect, ms: performance.now() - start, timedOut });
 
   const base = initialGrid(p);
   const bad = run(L, base, L.refs.map((_, i) => i));
   if (bad !== -1) return done('none', null, [L.refs[bad]]);
-  if (!probe(L, base)) return done('none', null, []);
 
   const found: Uint8Array[] = [];
   try {
+    if (!probe(L, base, deadline)) return done('none', null, []);
     search(L, base, 2, deadline, found);
   } catch (e) {
     if (!(e instanceof TimeUp)) throw e;
     // Out of time before uniqueness was settled: only the logically forced cells are safe.
+    timedOut = true;
     return done('multiple', base, suspectLines(L, base));
   }
   if (found.length === 0) return done('none', null, []);
@@ -165,6 +171,7 @@ export function solve(p: Puzzle, opts: { timeLimitMs?: number } = {}): SolveResu
     } catch (e) {
       if (!(e instanceof TimeUp)) throw e;
       // Never report a false mistake: drop every cell not yet confirmed.
+      timedOut = true;
       for (let c = cell; c < reference.length; c++) if (base[c] === UNKNOWN) reference[c] = UNKNOWN;
       break;
     }
