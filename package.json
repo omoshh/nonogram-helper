@@ -18,6 +18,7 @@
     "@types/node": "^26.6.6",
     "fake-indexeddb": "^6.2.8",
     "happy-dom": "^21.0.4",
+    "jpeg-js": "^0.4.4",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
     "vite-plugin-pwa": "^2.0.0",
