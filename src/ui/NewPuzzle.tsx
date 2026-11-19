@@ -83,6 +83,7 @@ export function NewPuzzle(props: { debug: boolean }) {
   const thumb = useRef<Blob | null>(null);
   const sessionId = useRef<number | null>(null);
   const urls = useRef<string[]>([]);
+  const alive = useRef(true);
   const dropPhoto = () => {
     urls.current.forEach((u) => URL.revokeObjectURL(u));
     urls.current = [];
@@ -91,17 +92,19 @@ export function NewPuzzle(props: { debug: boolean }) {
     thumb.current = null;
     setStrips(null);
   };
-  useEffect(() => dropPhoto, []);
+  useEffect(() => () => { alive.current = false; dropPhoto(); }, []);
 
   const confirmGrid = async (r: { sessionId: number; geometry: { width: number; height: number } }) => {
     sessionId.current = r.sessionId;
     setCutting(true);
     try {
       const s = await stripsAsync(r.sessionId, r.geometry as never, 40);
+      if (!alive.current) return; // left the screen meanwhile; the session is already closed
       const url = (b: Blob) => { const u = URL.createObjectURL(b); urls.current.push(u); return u; };
       thumb.current = s.thumbnail;
       setStrips({ rows: s.rows.map(url), cols: s.cols.map(url) });
     } catch { /* no strips: the clues can still be typed */ }
+    if (!alive.current) return;
     setCutting(false);
     setPhoto(null);
     start(blank(r.geometry.width, r.geometry.height));
@@ -178,7 +181,8 @@ export function NewPuzzle(props: { debug: boolean }) {
 
   const save = async (solved: Puzzle, status: 'unique' | 'multiple', reference: Uint8Array, timedOut: boolean) => {
     const id = crypto.randomUUID();
-    const thumbnail = thumb.current ? await toDataUrl(thumb.current) : undefined;
+    // The thumbnail is optional: never lose the puzzle over it.
+    const thumbnail = thumb.current ? await toDataUrl(thumb.current).catch(() => undefined) : undefined;
     await putPuzzle({ id, ...solved, answerDigits: [], reference, status, createdAt: new Date().toISOString(), ...(timedOut ? { timedOut } : {}), ...(thumbnail ? { thumbnail } : {}) });
     clearDraft();
     dropPhoto();

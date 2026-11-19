@@ -221,4 +221,33 @@ describe('from photo', () => {
     cleanup(); await new Promise((r) => setTimeout(r, 20));
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(5);
   });
+
+  const fillAndSolve = () => {
+    ['3', '1'].forEach((t, i) => fireEvent.input(screen.getByLabelText(`Row ${i + 1}`), { target: { value: t } }));
+    ['1', '2', '1'].forEach((t, i) => fireEvent.input(screen.getByLabelText(`Column ${i + 1}`), { target: { value: t } }));
+    fireEvent.click(solveButton());
+  };
+
+  test('unmount while strips are pending: no URLs, draft kept', async () => {
+    let finish!: (v: unknown) => void;
+    visionMocks.stripsAsync.mockReturnValue(new Promise((r) => { finish = r; }));
+    await pickAndConfirm();
+    sessionStorage.setItem('nonogram-new-draft', 'keep');
+    cleanup();
+    await new Promise((r) => setTimeout(r, 20));
+    finish({ rows: [blob('a'), blob('b')], cols: [blob('c'), blob('d'), blob('e')], thumbnail: blob('t') });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem('nonogram-new-draft')).toBe('keep');
+  });
+
+  test('a thumbnail error still saves the puzzle, without thumbnail', async () => {
+    visionMocks.stripsAsync.mockResolvedValue({ rows: [blob('a'), blob('b')], cols: [blob('c'), blob('d'), blob('e')], thumbnail: 'not a blob' });
+    await pickAndConfirm();
+    await screen.findByLabelText('Row 2');
+    fillAndSolve();
+    await waitFor(() => expect(location.hash).toMatch(/^#\/p\//));
+    const [rec] = await listPuzzles();
+    expect(rec.thumbnail).toBeUndefined();
+  });
 });
