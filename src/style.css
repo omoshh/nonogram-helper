@@ -128,3 +128,16 @@ input.invalid { border: 2px solid var(--error); background: var(--error-bg); }
   display: flex; gap: 12px; padding: 4px 16px;
   font: 12px ui-monospace, monospace; background: var(--fg); color: var(--bg); opacity: 0.85;
 }
+
+.button-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.button-row > * { flex: 1; }
+.danger { color: var(--error); border-color: var(--error); width: 100%; margin-top: 24px; }
+button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+
+.mode-switch { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.mode-switch button { flex: 1; min-width: 0; padding: 0 8px; margin: 0; }
+.mode-switch span { color: var(--muted); flex-basis: 100%; }
+.results { display: grid; gap: 8px; margin: 12px 0; }
+.result-block { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 4px 12px; }
+.result-block p { margin: 8px 0; }
+.result-block button { width: 100%; }
