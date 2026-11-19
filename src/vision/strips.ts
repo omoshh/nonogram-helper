@@ -28,15 +28,15 @@ function render(up: GrayImage, g: TableGeometry, w: number, h: number, map: (x: 
   return { width: w, height: h, data };
 }
 
-/** Rectified clue cells of one line: a horizontal strip (clue cells in reading order, left to right). */
+/** Rectified clue cells of one line: a horizontal strip (clue cells in reading order, left to right, each upright). */
 export function cutStrip(upright: GrayImage, g: TableGeometry, line: LineRef, px: number): GrayImage {
   if (line.axis === 'row') {
     const r = g.colClueDepth + line.index;
     return render(upright, g, g.rowClueDepth * px, px, (x, y) => [x / px, r + y / px]);
   }
   const c = g.rowClueDepth + line.index;
-  // vertical strip rotated 90° counter-clockwise: its top becomes the left, so cells read top→bottom as left→right
-  return render(upright, g, g.colClueDepth * px, px, (x, y) => [c + 1 - y / px, x / px]);
+  // column clue cells side by side, top cell first; each cell stays upright so its digits read normally
+  return render(upright, g, g.colClueDepth * px, px, (x, y) => [c + (x % px) / px, Math.floor(x / px) + y / px]);
 }
 
 /** Rectified grid without clues, long side = maxSide. */

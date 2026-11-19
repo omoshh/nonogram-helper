@@ -35,6 +35,21 @@ describe('cutStrip', () => {
     const want = Array.from({ length: o.colClueDepth }, (_, j) => ink(o.rowClueDepth + c, j));
     expect(want.map((_, j) => at(s, j * px + px / 2, px / 2) < 128)).toEqual(want);
   });
+  it('col strip: every cell upright (a dot right of each cell centre stays right of it)', () => {
+    const marked = { ...img, data: img.data.slice() }, c = 3, ci = o.rowClueDepth + c;
+    for (let j = 0; j < o.colClueDepth; j++) { // 5x5 px dot at cell point (0.8, 0.5), bilinear in the cell's crossings
+      const q = (u: number, v: number) => [0, 1].flatMap((dy) => [0, 1].map((dx) => corners[(j + dy) * (g.cols + 1) + ci + dx]))
+        .reduce((s, p, k) => { const w = (k & 1 ? u : 1 - u) * (k & 2 ? v : 1 - v); return { x: s.x + w * p.x, y: s.y + w * p.y }; }, { x: 0, y: 0 });
+      const d = q(0.8, 0.5);
+      for (let y = -2; y <= 2; y++) for (let x = -2; x <= 2; x++) marked.data[(Math.round(d.y) + y) * img.width + Math.round(d.x) + x] = 0;
+    }
+    const s = cutStrip(marked, g, { axis: 'col', index: c }, px);
+    for (let j = 0; j < o.colClueDepth; j++) {
+      expect(at(s, j * px + 0.8 * px, px / 2), `cell ${j} right`).toBeLessThan(128);
+      expect(at(s, j * px + 0.2 * px, px / 2), `cell ${j} left`).toBeGreaterThan(128);
+      expect(at(s, j * px + px / 2, 0.2 * px), `cell ${j} top`).toBeGreaterThan(128);
+    }
+  });
 });
 
 describe('thumbnail', () => {
