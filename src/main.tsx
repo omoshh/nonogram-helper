@@ -1,3 +1,5 @@
 import { render } from 'preact';
+import { App } from './ui/App';
+import './style.css';
 
-render(<h1>Nonogram Helper</h1>, document.getElementById('app')!);
+render(<App />, document.getElementById('app')!);
