@@ -22,6 +22,7 @@ const record = (): PuzzleRecord => ({
 });
 
 beforeEach(async () => {
+  hintAsync.mockReset();
   solveAsync.mockImplementation(async (p: Puzzle) => solve(p));
   hintAsync.mockImplementation(async (p: Puzzle, m: Uint8Array, r: Uint8Array) => ({ hint: nextHint(p, m, r), ms: 1 }));
   globalThis.indexedDB = new IDBFactory();
@@ -38,15 +39,21 @@ async function openCheck() {
 const cell = (c: Element, i: number) => c.querySelector(`[data-cell="${i}"]`) as HTMLElement;
 const button = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement;
 
-test('one wrong cell: mistakes one level per tap, hint blocked', async () => {
+test('one wrong cell: mistakes one level per tap, hint refused only when tapped', async () => {
   const { container } = await openCheck();
   fireEvent.click(cell(container, 0)); // filled, right
   fireEvent.click(cell(container, 4)); // filled, wrong (column 5 is empty)
   fireEvent.click(button('Check'));
   const mistakes = await screen.findByRole('button', { name: 'Mistakes' });
   expect(screen.queryByText('1 mistake.')).toBeNull();
-  expect(button('Hint').disabled).toBe(true);
-  screen.getByText('Fix the mistakes first.');
+  // Nothing tells whether mistakes exist before a tap.
+  expect(button('Hint').disabled).toBe(false);
+  expect(screen.queryByText('Fix the mistakes first.')).toBeNull();
+  fireEvent.click(button('Hint'));
+  await screen.findByText('Fix the mistakes first.');
+  expect(hintAsync).not.toHaveBeenCalled();
+  expect(screen.queryByText('1 mistake.')).toBeNull();
+  expect(container.querySelectorAll('.marked')).toHaveLength(0);
 
   fireEvent.click(mistakes);
   screen.getByText('1 mistake.');

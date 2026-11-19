@@ -35,6 +35,7 @@ export function ResultPanel(props: {
   const [hint, setHint] = useState<Hint | null>(null);
   const [hLevel, setHLevel] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [blocked, setBlocked] = useState(false);
   const [error, setError] = useState('');
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
@@ -48,6 +49,8 @@ export function ResultPanel(props: {
 
   const askHint = async () => {
     if (busy) return;
+    // Only now, on request, say that mistakes block the hint (no count, no cells).
+    if (mistakes.cells.length > 0) { setBlocked(true); return; }
     setBusy(true);
     setError('');
     try {
@@ -84,8 +87,8 @@ export function ResultPanel(props: {
       <div class="result-block">
         {!hint && (
           <>
-            <button type="button" class="secondary" disabled={hasMistakes || busy} onClick={askHint}>Hint</button>
-            {hasMistakes && <p class="hint">Fix the mistakes first.</p>}
+            <button type="button" class="secondary" disabled={busy} onClick={askHint}>Hint</button>
+            {blocked && <p role="status">Fix the mistakes first.</p>}
             {busy && <p class="hint">Thinking…</p>}
           </>
         )}
