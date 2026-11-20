@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { FILLED, EMPTY } from '../core/types';
 
+/** Short enough to feel instant, long enough for a second tap. */
+const DOUBLE_TAP_MS = 250;
+
 export function GridView(props: {
   width: number; height: number; cells: Uint8Array;
   rows?: number[][]; cols?: number[][];
@@ -8,17 +11,26 @@ export function GridView(props: {
   /** Cells printed filled in the puzzle: drawn apart from the user's marks. */
   givens?: Set<number>;
   onTap?: (cell: number) => void;
-  /** Called with the cells from before the first tap of a double-tap, so the parent can undo it. */
-  onRevert?: (before: Uint8Array) => void;
   /** Cells drawn with a ring (to look at again). */
   ringed?: Set<number>;
   /** Zoom in and scroll this cell to the centre. */
   focus?: number;
 }) {
-  const { width, height, cells, rows, cols, marked, markColor, givens, onTap, onRevert, ringed, focus } = props;
+  const { width, height, cells, rows, cols, marked, markColor, givens, onTap, ringed, focus } = props;
   const [zoomed, setZoomed] = useState(focus !== undefined);
   const box = useRef<HTMLDivElement>(null);
-  const before = useRef(cells); // cells as they were before the latest tap
+  // A real tap (click detail >= 1) waits DOUBLE_TAP_MS so a double-tap can cancel it; detail 0 (keyboard) applies at once.
+  const pending = useRef<{ cell: number; timer: ReturnType<typeof setTimeout> } | null>(null);
+  const onTapRef = useRef(onTap);
+  onTapRef.current = onTap;
+  const flush = () => {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    onTapRef.current?.(p.cell);
+  };
+  useEffect(() => () => { if (pending.current) clearTimeout(pending.current.timer); }, []);
   const withClues = !!(rows && cols);
   // Tappable grids start fitted to the box width (cells may be small) and zoom to 28px cells that scroll.
   // Other grids: about 360px of cells, scrolling when wider.
@@ -39,10 +51,17 @@ export function GridView(props: {
   const tap = (e: MouseEvent) => {
     const i = (e.target as HTMLElement).dataset.cell;
     if (!onTap || i === undefined) return;
-    // A double-tap (click with detail 2) toggles zoom and undoes the first tap's change.
-    if (e.detail === 2) { onRevert?.(before.current); setZoomed((z) => !z); return; }
-    before.current = cells;
-    onTap(Number(i));
+    const cell = Number(i);
+    // Second click on the same cell cancels its waiting tap and toggles zoom; a different cell's tap applies the waiting one first.
+    if (pending.current?.cell === cell && e.detail === 2) {
+      clearTimeout(pending.current.timer);
+      pending.current = null;
+      setZoomed((z) => !z);
+      return;
+    }
+    flush();
+    if (e.detail === 0) onTap(cell);
+    else pending.current = { cell, timer: setTimeout(flush, DOUBLE_TAP_MS) };
   };
 
   const items = [];

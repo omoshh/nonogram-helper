@@ -60,7 +60,7 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
         ))}
       </div>
       <GridView width={rec.width} height={rec.height} cells={marks} rows={rec.rows} cols={rec.cols}
-        givens={givens} marked={highlight ? new Set(highlight.cells) : undefined} markColor={highlight?.color} onTap={tap} onRevert={(b) => setMarks(b as Uint8Array<ArrayBuffer>)} />
+        givens={givens} marked={highlight ? new Set(highlight.cells) : undefined} markColor={highlight?.color} onTap={tap} />
       {error && <p class="error" role="alert">{error}</p>}
       {checked === marks
         ? <ResultPanel puzzle={puzzle} marks={checked} reference={reference} onHighlight={setHighlight} />

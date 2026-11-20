@@ -22,16 +22,41 @@ it('starts fitted to the width, and Zoom toggles 28px cells', () => {
   expect(cellPx(container)).toBeLessThanOrEqual(400 / W);
 });
 
-it('double-tap toggles zoom and leaves the cell alone; a single tap still taps', () => {
-  const onTap = vi.fn(), onRevert = vi.fn();
-  const cells = new Uint8Array(W * 2);
-  const { container } = mount({ onTap, onRevert, cells });
+it('double-tap toggles zoom and taps nothing, with no callback wiring', () => {
+  vi.useFakeTimers();
+  const onTap = vi.fn();
+  const { container } = mount({ onTap });
   fireEvent.click(at(container, 3), { detail: 1 });
-  expect(onTap).toHaveBeenCalledTimes(1);
   fireEvent.click(at(container, 3), { detail: 2 });
-  expect(onTap).toHaveBeenCalledTimes(1);
-  expect(onRevert).toHaveBeenCalledWith(cells);
+  vi.advanceTimersByTime(1000);
+  expect(onTap).not.toHaveBeenCalled();
   expect(cellPx(container)).toBeGreaterThanOrEqual(28);
+  vi.useRealTimers();
+});
+
+it('a single tap applies after the short wait; keyboard click applies at once', () => {
+  vi.useFakeTimers();
+  const onTap = vi.fn();
+  const { container } = mount({ onTap });
+  fireEvent.click(at(container, 3), { detail: 1 });
+  expect(onTap).not.toHaveBeenCalled();
+  vi.advanceTimersByTime(250);
+  expect(onTap).toHaveBeenCalledWith(3);
+  fireEvent.click(at(container, 4), { detail: 0 });
+  expect(onTap).toHaveBeenCalledWith(4);
+  vi.useRealTimers();
+});
+
+it('quick taps on two different cells both apply', () => {
+  vi.useFakeTimers();
+  const onTap = vi.fn();
+  const { container } = mount({ onTap });
+  fireEvent.click(at(container, 3), { detail: 1 });
+  fireEvent.click(at(container, 4), { detail: 2 });
+  vi.advanceTimersByTime(1000);
+  expect(onTap.mock.calls).toEqual([[3], [4]]);
+  expect(cellPx(container)).toBeLessThanOrEqual(400 / W);
+  vi.useRealTimers();
 });
 
 it('ringed cells get class ring', () => {
