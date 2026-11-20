@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { MARK_LABELS, MARK_ROWS } from './marks-labels';
 
 describe('mark labels (no photos needed)', () => {
-  it('has 8 labels', () => expect(MARK_LABELS).toHaveLength(8));
+  it('has 13 labels', () => expect(MARK_LABELS).toHaveLength(13));
 
   MARK_LABELS.forEach((l, i) => {
     it(`${MARK_ROWS[i].photo}: height rows of width chars #.-G?`, () => {
@@ -13,12 +13,13 @@ describe('mark labels (no photos needed)', () => {
     });
   });
 
-  it('25×40 set: givens identical in all three files', () => {
-    const set = MARK_LABELS.filter((l) => l.photo.file.startsWith('solved-pair/25x40-'));
-    expect(set).toHaveLength(3);
-    const givens = set.map((l) => [...l.cells].map((c) => (c === 'G' ? 'G' : ' ')).join(''));
-    expect(givens[0]).toContain('G');
-    expect(givens[1]).toBe(givens[0]);
-    expect(givens[2]).toBe(givens[0]);
-  });
+  for (const [set, n] of [['25x40', 3], ['25x35', 5]] as const) {
+    it(`${set} set: givens identical in all ${n} files`, () => {
+      const files = MARK_LABELS.filter((l) => l.photo.file.startsWith(`solved-pair/${set}-`));
+      expect(files).toHaveLength(n);
+      const givens = files.map((l) => [...l.cells].map((c) => (c === 'G' ? 'G' : ' ')).join(''));
+      expect(givens[0]).toContain('G');
+      for (const g of givens) expect(g).toBe(givens[0]);
+    });
+  }
 });
