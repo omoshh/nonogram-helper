@@ -123,7 +123,7 @@ test('no unsure cells: no stepper, Check enabled at once', async () => {
   expect(btn('Check').disabled).toBe(false);
 });
 
-const RETAKE = 'Part of the page is in shadow or blurred. A new photo will read better.';
+const RETAKE = 'Part of the page is in shadow or blurred. Cancel and take a new photo for a better read.';
 
 test('a retake read says so above the review, and the review still works', async () => {
   read([5, 100, 900], true);

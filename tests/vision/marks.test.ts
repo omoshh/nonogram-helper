@@ -118,6 +118,18 @@ describe('readMarks', () => {
     expect(r.retake).toBe(true);
   });
 
+  it('smooth shaded blanks on a page with grainy pencil fills are unsure, never silent fills', () => {
+    const { patches } = grid(0); // the 30 fills keep the filled group's median grainy
+    const shaded = Array.from({ length: 5 }, () => {
+      const p = patch('blank');
+      for (let k = 0; k < N * N; k++) p.data[k] = Math.round(140 + rnd() * 6); // flat dim paper, real-photo noise
+      return p;
+    });
+    patches.splice(30, 0, ...shaded); // among blanks, so their local paper is white
+    const r = readMarks(patches, new Set(), patches.length);
+    for (let i = 30; i < 35; i++) expect(r.cells[i] !== FILLED || r.unsure.includes(i)).toBe(true);
+  });
+
   it('dots in a deep shadow are unsure, never silent fills', () => {
     const { patches } = grid(0);
     const ps = [...patches, ...many('dot', 5).map((p) => shade(p, 0.4))];

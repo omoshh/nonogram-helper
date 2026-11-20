@@ -7,9 +7,9 @@ export const MARK_PX = 24;
  * `overrides` = cells where a strong dot beat fill evidence (past the cut or in its doubt band); all are unsure.
  * `retake` = more unsure cells than 1 % of the grid: shadow or blur, a new photo will read better.
  */
-export interface MarksResult { cells: Uint8Array; unsure: number[]; overrides?: number; retake: boolean }
+export interface MarksResult { cells: Uint8Array; unsure: number[]; overrides: number; retake: boolean }
 
-// ---- constants, tuned on the 8 labelled photos (task 4); pixel sizes assume MARK_PX = 24 ----
+// ---- constants, tuned on the 13 labelled photos (8 in task 4, shadow guard on the 25x35 set); pixel sizes assume MARK_PX = 24 ----
 const PAPER_PCT = 0.9;       // a patch's own paper level = this percentile
 const PAPER_WIDE = 8;        // cells: window radius for the photo-wide paper level (beats big filled blocks)
 const PAPER_LIKE = 0.93;     // a patch is paper-like when its paper level is >= this share of the wide level
@@ -25,17 +25,19 @@ const DOT_BOX = 5;           // px: dot contrast = darkest DOT_BOX^2 box vs the 
 const DOT_EDGE = 1;          // ... with the box at least this far from the patch edge
 const DOT_MIN = 0.12;        // dot contrast above this = dot ...
 const DOT_BAND = 1.1;        // ... unsure within /DOT_BAND .. *DOT_BAND
-const OFF_CENTRE = 0.38;     // dot box centre further than this share of the patch from the middle = unsure (a stray stroke sat at 0.39)
+const OFF_CENTRE = 0.38;     // dot box centre further than this share of the patch from the middle = unsure (a stray stroke sat at 0.3875: margin 0.0075)
 const DARK = 0.3;            // a pixel is ink when this much darker than the patch median
 const BIG_DOT = 135;         // px of ink: a "dot" larger than any real dot (half-way to filled) = unsure
 const DIGIT_X = 15, DIGIT_Y = 9; // printed region numbers sit in this bottom-right corner, cut by the patch edge
 const LINE_W = 3, LINE_L = 8;    // grid-line remnant: edge-touching ink at most LINE_W thick, LINE_L long
 // Shadow guard (task 7): shaded paper can be darker than a lit fill, so these calls go to unsure instead.
+// Solid ink (marker, pen) is as smooth as paper: such fills all go to unsure (fails safe, likely a retake).
 const FLAT = 0.9;            // median/own above this = no hatching: flat paper, however dim ...
-const FLAT_DOT = 0.25;       // ... and with a dot on it, a "filled" call is a shaded dot as likely
+const FLAT_DOT = 0.25;       // ... and with a dot on it, a "filled" call is a shaded dot as likely (shaded dots >= 0.34; 0.2 already retakes good photos)
 const GRAIN_FILL = 0.03;     // filled group's median grain below this = smooth like paper: shadow, not pencil
-const DOT_FAINT = 0.073;     // contrast below the dot band but above this, centred or with ink = a blurred dot?
-const FAINT_OFF = 0.2;
+const STEP_FILL = 3.2;       // grey levels: a filled cell's own mean pixel step below this = paper noise, not pencil (shaded paper <= 2.71, sure pencil >= 3.76)
+const DOT_FAINT = 0.073;     // contrast below the dot band but above this, centred or with ink = a blurred dot? (blank 0.0717, faint dot 0.0761: tight)
+const FAINT_OFF = 0.2;      // ... centred = dot box centre within this share of the patch from the middle
 const RETAKE = 0.01;         // more unsure than this share of the grid = ask for a new photo
 
 const S = MARK_PX;
@@ -70,7 +72,7 @@ function maskPrint(data: Uint8Array, med: number): Float64Array {
   return out;
 }
 
-interface Features { fill: number; dot: number; off: number; area: number; flat: number; grain: number }
+interface Features { fill: number; dot: number; off: number; area: number; flat: number; grain: number; step: number }
 
 function features(data: Uint8Array, paper: number, own: number): Features {
   const med = Math.max(percentile(data, 0.5), 1), q = maskPrint(data, med);
@@ -91,6 +93,7 @@ function features(data: Uint8Array, paper: number, own: number): Features {
     area,
     flat: med / own,
     grain: grain / (S * (S - 1)) / med,
+    step: grain / (S * (S - 1)),
   };
 }
 
@@ -156,7 +159,7 @@ export function readMarks(patches: GrayImage[], givens: ReadonlySet<number>, wid
   for (const [i, f] of feats) {
     const strong = isStrong(f);
     const filled = f.fill < cut && !strong;
-    const shaded = filled && (smoothDark || (f.flat > FLAT && f.dot > FLAT_DOT));
+    const shaded = filled && (smoothDark || f.step < STEP_FILL || (f.flat > FLAT && f.dot > FLAT_DOT));
     const fillDoubt = !strong && Math.abs(f.fill - cut) < FILL_BAND * spread;
     const override = strong && f.fill < cut + FILL_BAND * spread; // never silent: could hide a filled cell
     if (override) overrides++;

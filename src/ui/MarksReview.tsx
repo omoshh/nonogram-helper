@@ -36,7 +36,7 @@ export function MarksReview(props: {
 
   return (
     <main>
-      {props.retake && <p>Part of the page is in shadow or blurred. A new photo will read better.</p>}
+      {props.retake && <p>Part of the page is in shadow or blurred. Cancel and take a new photo for a better read.</p>}
       <h2>{n === 1 ? '1 cell to check' : `${n} cells to check`}</h2>
       {n > 0 && (
         <>
