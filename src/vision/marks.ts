@@ -3,7 +3,8 @@ import type { GrayImage } from './types';
 
 export const MARK_PX = 24;
 
-export interface MarksResult { cells: Uint8Array; unsure: number[] }
+/** `overrides` = cells where a strong dot beat fill evidence (past the cut or in its doubt band); all are unsure. */
+export interface MarksResult { cells: Uint8Array; unsure: number[]; overrides?: number }
 
 // ---- constants, tuned on the 8 labelled photos (task 4); pixel sizes assume MARK_PX = 24 ----
 const PAPER_PCT = 0.9;       // a patch's own paper level = this percentile
@@ -126,21 +127,24 @@ export function readMarks(patches: GrayImage[], givens: ReadonlySet<number>, wid
     if (givens.has(i)) cells[i] = FILLED;
     else feats.set(i, features(p.data, paper[i], own[i]));
   });
-  if (!feats.size) return { cells, unsure };
+  if (!feats.size) return { cells, unsure, overrides: 0 };
 
   const upper = nonFill([...feats.values()].map((f) => f.fill));
   const mid = percentile(upper, 0.5);
   const spread = Math.max(percentile(upper, 0.75) - percentile(upper, 0.25), MIN_SPREAD);
   const cut = mid - FILL_K * spread;
 
+  let overrides = 0;
   for (const [i, f] of feats) {
     const strong = f.dot > DOT_STRONG && f.fill > mid - DEEP_K * spread;
     const filled = f.fill < cut && !strong;
     const fillDoubt = !strong && Math.abs(f.fill - cut) < FILL_BAND * spread;
+    const override = strong && f.fill < cut + FILL_BAND * spread; // never silent: could hide a filled cell
+    if (override) overrides++;
     const dot = !filled && f.dot > DOT_MIN;
     const dotDoubt = !filled && f.dot > DOT_MIN / DOT_BAND && f.dot < DOT_MIN * DOT_BAND;
     cells[i] = filled ? FILLED : dot ? EMPTY : UNKNOWN;
-    if (fillDoubt || dotDoubt || (dot && (f.off > OFF_CENTRE || f.area > BIG_DOT))) unsure.push(i);
+    if (fillDoubt || override || dotDoubt || (dot && (f.off > OFF_CENTRE || f.area > BIG_DOT))) unsure.push(i);
   }
-  return { cells, unsure: unsure.sort((a, b) => a - b) };
+  return { cells, unsure: unsure.sort((a, b) => a - b), overrides };
 }

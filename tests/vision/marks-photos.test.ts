@@ -15,7 +15,7 @@ forEachMarkPhoto((l, img) => {
     const g = meshFromCorners(up, l.photo.gridCorners.map(([x, y]) => ({ x, y })), l.photo);
     const givens = new Set([...l.cells].flatMap((c, i) => (c === 'G' ? [i] : [])));
     const t0 = performance.now();
-    const { cells, unsure } = readMarks(cellPatches(up, g, MARK_PX), givens, width);
+    const { cells, unsure, overrides } = readMarks(cellPatches(up, g, MARK_PX), givens, width);
     const ms = performance.now() - t0;
     const uns = new Set(unsure);
     let countable = 0, right = 0;
@@ -30,7 +30,7 @@ forEachMarkPhoto((l, img) => {
     });
     const acc = right / countable, limit = Math.floor(0.01 * width * height);
     console.log(`${l.photo.file}: acc ${(acc * 100).toFixed(2)} % wrong ${wrong.length} ${wrong.join(' ')} `
-      + `unsure ${unsure.length}/${limit} ${ms.toFixed(0)} ms`);
+      + `unsure ${unsure.length}/${limit} overrides ${overrides} ${ms.toFixed(0)} ms`);
     expect(acc).toBeGreaterThanOrEqual(0.995);
     expect(wrongSure).toEqual([]);
     expect(qSure).toEqual([]);

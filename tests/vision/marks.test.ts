@@ -98,6 +98,16 @@ describe('readMarks', () => {
     expect(r.unsure).toContain(120);
   });
 
+  it('a strong dot on a cell dark enough to be filled is unsure, never a silent dot', () => {
+    const { patches } = grid(0);
+    const grey = patch('dot');
+    for (let k = 0; k < N * N; k++) if (grey.data[k] > 100) grey.data[k] = 203; // uniform grey: fill score past the cut
+    patches.splice(30, 0, grey); // among blanks, so its local paper is white
+    const r = readMarks(patches, new Set(), patches.length);
+    expect(r.unsure).toContain(30);
+    expect(r.overrides).toBe(1);
+  });
+
   it('an all-blank grid stays all UNKNOWN with nothing unsure', () => {
     const r = readMarks(many('blank', 100), new Set(), 100);
     expect(Array.from(r.cells)).toEqual(Array(100).fill(UNKNOWN));
