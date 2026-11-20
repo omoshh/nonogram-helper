@@ -11,8 +11,9 @@ const PAPER_PCT = 0.9;       // paper level = this percentile of a patch
 const GLOBAL_PAPER_PCT = 0.8; // ... or of all patches, when a patch is mostly dark
 const MOSTLY_DARK = 0.8;     // patch paper below this share of the global paper = mostly dark
 const MIN_BLOB = 4;          // px; smaller specks are noise
-const DIGIT_FILL = 0.4;      // digit: dark area / bbox area below this ...
+const DIGIT_FILL = 0.7;      // digit: dark area / bbox area below this (7, rings 0/6/8/9) ...
 const DIGIT_SIZE = 0.375;    // ... and bbox side at least this share of the patch (9/24)
+const DIGIT_NARROW = 3;      // ... or a long straight stroke (1): short side at most this many px
 const DOT_MIN_INK = 0.02;    // ink share below this = blank
 const NOISE_INK = 0.008;     // between NOISE_INK and DOT_MIN_INK: unexplained ink -> unsure
 const FILLED_MIN_INK = 0.25; // used when the photo has only one mark group
@@ -50,7 +51,8 @@ function features(img: GrayImage, paper: number): Features {
     }
     if (area < MIN_BLOB) continue;
     const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
-    if (area / (bw * bh) < DIGIT_FILL && Math.max(bw, bh) >= DIGIT_SIZE * Math.min(w, h)) continue; // thin long stroke = printed digit
+    const long = Math.max(bw, bh) >= DIGIT_SIZE * Math.min(w, h);
+    if (long && (area / (bw * bh) < DIGIT_FILL || Math.min(bw, bh) <= DIGIT_NARROW)) continue; // printed digit
     ink += area;
     if (area > bestArea) {
       bestArea = area;

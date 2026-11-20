@@ -7,9 +7,10 @@ const N = MARK_PX;
 let seed = 7;
 const rnd = () => ((seed = (seed * 1664525 + 1013904223) >>> 0) / 2 ** 32) - 0.5; // -0.5..0.5
 
+type Digit = '7' | '1' | '0';
 type Kind = 'blank' | 'dot' | 'filled' | 'mid';
 
-function patch(kind: Kind, o: { digit?: boolean; shift?: number } = {}): GrayImage {
+function patch(kind: Kind, o: { digit?: Digit; shift?: number } = {}): GrayImage {
   const shift = o.shift ?? 0;
   const data = new Uint8Array(N * N);
   const put = (x: number, y: number, v: number) => { data[y * N + x] = Math.max(0, Math.min(255, v + shift)); };
@@ -24,7 +25,14 @@ function patch(kind: Kind, o: { digit?: boolean; shift?: number } = {}): GrayIma
       put(x, y, v);
     }
   }
-  if (o.digit) {
+  if (o.digit === '1') for (let y = 3; y < 15; y++) put(17, y, 0);
+  if (o.digit === '0') {
+    for (let y = 3; y < 15; y++) for (let x = 13; x < 21; x++) {
+      const e = ((x - 16.5) / 4) ** 2 + ((y - 8.5) / 6) ** 2;
+      if (e <= 1 && e > 0.4) put(x, y, 0);
+    }
+  }
+  if (o.digit === '7') {
     // a "7": 1-px top bar and a diagonal, 12 px tall, off-centre
     for (let x = 14; x < 20; x++) put(x, 3, 0);
     for (let i = 0; i < 11; i++) put(19 - Math.floor(i / 2), 4 + i, 0);
@@ -50,16 +58,27 @@ describe('readMarks', () => {
 
   it('ignores printed digits on blank and filled cells', () => {
     const { patches, expected } = grid(0);
-    const ps = [...patches, patch('blank', { digit: true }), patch('filled', { digit: true })];
+    const ps = [...patches, patch('blank', { digit: '7' }), patch('filled', { digit: '7' })];
     const r = readMarks(ps, new Set());
     expect(r.cells[120]).toBe(UNKNOWN);
     expect(r.cells[121]).toBe(FILLED);
     expect(Array.from(r.cells.slice(0, 120))).toEqual(expected);
   });
 
+  for (const d of ['1', '0'] as const) {
+    it(`ignores a printed "${d}" on blank and filled cells`, () => {
+      const { patches, expected } = grid(0);
+      const r = readMarks([...patches, patch('blank', { digit: d }), patch('filled', { digit: d })], new Set());
+      expect(r.cells[120]).toBe(UNKNOWN);
+      expect(r.cells[121]).toBe(FILLED);
+      expect(Array.from(r.cells.slice(0, 120))).toEqual(expected);
+      expect(r.unsure).toEqual([]);
+    });
+  }
+
   it('dot + digit is EMPTY or unsure', () => {
     const { patches } = grid(0);
-    const r = readMarks([...patches, patch('dot', { digit: true })], new Set());
+    const r = readMarks([...patches, patch('dot', { digit: '7' })], new Set());
     expect(r.cells[120] === EMPTY || r.unsure.includes(120)).toBe(true);
   });
 
