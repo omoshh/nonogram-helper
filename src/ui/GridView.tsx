@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { FILLED, EMPTY } from '../core/types';
 
 export function GridView(props: {
@@ -7,16 +8,41 @@ export function GridView(props: {
   /** Cells printed filled in the puzzle: drawn apart from the user's marks. */
   givens?: Set<number>;
   onTap?: (cell: number) => void;
+  /** Called with the cells from before the first tap of a double-tap, so the parent can undo it. */
+  onRevert?: (before: Uint8Array) => void;
+  /** Cells drawn with a ring (to look at again). */
+  ringed?: Set<number>;
+  /** Zoom in and scroll this cell to the centre. */
+  focus?: number;
 }) {
-  const { width, height, cells, rows, cols, marked, markColor, givens, onTap } = props;
+  const { width, height, cells, rows, cols, marked, markColor, givens, onTap, onRevert, ringed, focus } = props;
+  const [zoomed, setZoomed] = useState(focus !== undefined);
+  const box = useRef<HTMLDivElement>(null);
+  const before = useRef(cells); // cells as they were before the latest tap
   const withClues = !!(rows && cols);
-  // Fit about 360px of cells on a phone; the box scrolls when wider.
-  // Tappable grids keep cells finger-sized (28px) and scroll instead.
-  const cell = Math.max(onTap ? 28 : 10, Math.min(32, Math.floor(360 / width)));
+  // Tappable grids start fitted to the box width (cells may be small) and zoom to 28px cells that scroll.
+  // Other grids: about 360px of cells, scrolling when wider.
+  // shortcut: clue columns estimated at 2 chars per cell; box width read at render, not on resize.
+  const clueCols = withClues ? Math.max(1, Math.ceil(Math.max(0, ...rows!.map((r) => r.join(' ').length)) / 2)) : 0;
+  const boxWidth = box.current?.clientWidth || window.innerWidth - 32;
+  const cell = onTap
+    ? (zoomed ? 28 : Math.max(1, Math.floor(boxWidth / (width + clueCols))))
+    : Math.max(10, Math.min(32, Math.floor(360 / width)));
+
+  useEffect(() => { if (focus !== undefined) setZoomed(true); }, [focus]);
+  useEffect(() => {
+    if (zoomed && focus !== undefined) {
+      box.current?.querySelector(`[data-cell="${focus}"]`)?.scrollIntoView?.({ block: 'center', inline: 'center' });
+    }
+  }, [focus, zoomed]);
 
   const tap = (e: MouseEvent) => {
     const i = (e.target as HTMLElement).dataset.cell;
-    if (onTap && i !== undefined) onTap(Number(i));
+    if (!onTap || i === undefined) return;
+    // A double-tap (click with detail 2) toggles zoom and undoes the first tap's change.
+    if (e.detail === 2) { onRevert?.(before.current); setZoomed((z) => !z); return; }
+    before.current = cells;
+    onTap(Number(i));
   };
 
   const items = [];
@@ -43,6 +69,7 @@ export function GridView(props: {
       if (r % 5 === 4 && r < height - 1) cls += ' edge-bottom';
       const isMarked = marked?.has(i);
       if (isMarked) cls += ' marked';
+      if (ringed?.has(i)) cls += ' ring';
       items.push(
         <div
           key={i}
@@ -55,7 +82,8 @@ export function GridView(props: {
   }
 
   return (
-    <div class="grid-scroll">
+    <div class="grid-scroll" ref={box}>
+      {onTap && <button type="button" class="zoom-toggle" aria-pressed={zoomed} onClick={() => setZoomed(!zoomed)}>Zoom</button>}
       <div
         class={`grid${onTap ? ' tappable' : ''}`}
         style={{
