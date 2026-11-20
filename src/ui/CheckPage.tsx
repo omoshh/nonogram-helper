@@ -1,7 +1,13 @@
-import { useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { UNKNOWN, FILLED, EMPTY, type Cell } from '../core/types';
 import { putPuzzle, type PuzzleRecord } from '../store/db';
+import { closeSession, readMarksAsync } from '../worker/visionClient';
+import type { TableGeometry } from '../vision/mesh';
+import { setTime } from './DebugTimes';
+import { GridCheck } from './GridCheck';
 import { GridView } from './GridView';
+import { CYCLE, MarksReview } from './MarksReview';
+import { PhotoPick } from './PhotoPick';
 import { RecordGate, toPuzzle, usePuzzleRecord } from './PuzzlePage';
 import { ResultPanel, type Highlight } from './ResultPanel';
 
@@ -10,7 +16,6 @@ const MODES: { mode: Mode; label: string }[] = [
   { mode: 'cycle', label: 'Cycle' }, { mode: FILLED, label: 'Filled' },
   { mode: EMPTY, label: 'Dot' }, { mode: UNKNOWN, label: 'Clear' },
 ];
-const CYCLE: Record<number, Cell> = { [UNKNOWN]: FILLED, [FILLED]: EMPTY, [EMPTY]: UNKNOWN };
 
 function MarksEditor(props: { rec: PuzzleRecord }) {
   const { rec } = props;
@@ -28,6 +33,42 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
   const [checked, setChecked] = useState<Uint8Array | null>(null);
   const [highlight, setHighlight] = useState<Highlight>(null);
   const [error, setError] = useState('');
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [reading, setReading] = useState(false);
+  const [photoError, setPhotoError] = useState('');
+  const [review, setReview] = useState<{ cells: Uint8Array; unsure: number[]; views: string[] } | null>(null);
+  const open = useRef<{ session: number | null; urls: string[] }>({ session: null, urls: [] });
+  const release = () => {
+    if (open.current.session !== null) closeSession(open.current.session);
+    open.current.session = null;
+    open.current.urls.forEach((u) => URL.revokeObjectURL(u));
+    open.current.urls = [];
+  };
+  useEffect(() => release, []);
+
+  // The solution is never passed: only the photo session, the confirmed grid and the printed givens.
+  const read = async (sessionId: number, g: TableGeometry) => {
+    setPhoto(null);
+    if (g.width !== rec.width || g.height !== rec.height) {
+      closeSession(sessionId);
+      setPhotoError(`This photo shows a ${g.width}×${g.height} grid; this puzzle is ${rec.width}×${rec.height}.`);
+      return;
+    }
+    open.current.session = sessionId;
+    setReading(true);
+    try {
+      const r = await readMarksAsync(sessionId, g, rec.givens);
+      setTime('marks', r.ms);
+      open.current.urls = r.views.map((b) => URL.createObjectURL(b));
+      setReview({ cells: r.cells, unsure: r.unsure, views: open.current.urls });
+    } catch (e) {
+      setPhotoError(`Could not read the marks. (${e instanceof Error ? e.message : String(e)})`);
+    } finally {
+      closeSession(sessionId);
+      open.current.session = null;
+      setReading(false);
+    }
+  };
 
   const tap = (cell: number) => {
     if (givens.has(cell)) return; // printed filled
@@ -38,8 +79,7 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
     setChecked(null);
   };
 
-  const check = async () => {
-    const snapshot = marks;
+  const check = async (snapshot = marks) => {
     try {
       await putPuzzle({ ...rec, lastMarks: snapshot });
       setError('');
@@ -48,6 +88,18 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
     }
     setChecked(snapshot);
   };
+
+  if (photo) return (
+    <GridCheck file={photo} onCancel={() => setPhoto(null)} onConfirm={(r) => read(r.sessionId, r.geometry)}
+      knownGrid={{ width: rec.width, height: rec.height, fallbackDepth: {
+        colClueDepth: Math.max(1, ...rec.cols.map((c) => c.length)), rowClueDepth: Math.max(1, ...rec.rows.map((r) => r.length)) } }} />
+  );
+  if (reading) return <main><p>Reading the marks…</p></main>;
+  if (review) return (
+    <MarksReview rec={rec} {...review}
+      onCancel={() => { release(); setReview(null); }}
+      onDone={(m) => { release(); setReview(null); setMarks(m); check(m); }} />
+  );
 
   return (
     <main>
@@ -61,10 +113,12 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
       </div>
       <GridView width={rec.width} height={rec.height} cells={marks} rows={rec.rows} cols={rec.cols}
         givens={givens} marked={highlight ? new Set(highlight.cells) : undefined} markColor={highlight?.color} onTap={tap} />
+      <PhotoPick label="Photo" onFile={(f) => { setPhotoError(''); setPhoto(f); }} />
+      {photoError && <p class="error" role="alert">{photoError}</p>}
       {error && <p class="error" role="alert">{error}</p>}
       {checked === marks
         ? <ResultPanel puzzle={puzzle} marks={checked} reference={reference} onHighlight={setHighlight} />
-        : <div class="solve-bar"><button type="button" class="primary" onClick={check}>Check</button></div>}
+        : <div class="solve-bar"><button type="button" class="primary" onClick={() => check()}>Check</button></div>}
     </main>
   );
 }

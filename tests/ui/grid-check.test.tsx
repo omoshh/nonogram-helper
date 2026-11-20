@@ -259,3 +259,19 @@ test('a new file closes the old session', async () => {
   await waitFor(() => expect(detectPhoto).toHaveBeenCalledTimes(2));
   expect(closeSession).not.toHaveBeenCalledWith(8);
 });
+
+test('knownGrid: size from the puzzle, depths from the detection', async () => {
+  mount({ knownGrid: { width: 20, height: 20, fallbackDepth: { colClueDepth: 4, rowClueDepth: 5 } } });
+  await waitFor(() => expect(use().disabled).toBe(false));
+  expect((screen.getByLabelText('Size') as HTMLSelectElement).value).toBe('20x20');
+  expect((screen.getByLabelText('Row clue depth') as HTMLInputElement).value).toBe('1');
+});
+
+test('knownGrid with a failed detection: mesh uses fallbackDepth', async () => {
+  detectPhoto.mockResolvedValue({ session, result: { ok: false, reason: 'x' }, ms: 5 });
+  mount({ knownGrid: { width: 20, height: 20, fallbackDepth: { colClueDepth: 4, rowClueDepth: 5 } } });
+  await screen.findByText(/Could not find the puzzle/);
+  expect((screen.getByLabelText('Row clue depth') as HTMLInputElement).value).toBe('5');
+  fireEvent.click(use());
+  await waitFor(() => expect(meshFromCornersAsync.mock.lastCall?.[2]).toMatchObject({ width: 20, height: 20, colClueDepth: 4, rowClueDepth: 5 }));
+});

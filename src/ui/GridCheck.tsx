@@ -56,6 +56,8 @@ function draw(canvas: HTMLCanvasElement, s: PhotoSession, g: TableGeometry | nul
 export function GridCheck(props: {
   file: File;
   knownSize?: Known;
+  /** The size is the puzzle's; depths come from the detection, else fallbackDepth. */
+  knownGrid?: { width: number; height: number; fallbackDepth: { colClueDepth: number; rowClueDepth: number } };
   onConfirm: (r: { sessionId: number; geometry: TableGeometry }) => void;
   onCancel: () => void;
 }) {
@@ -97,8 +99,13 @@ export function GridCheck(props: {
     detectPhoto(props.file).then(({ session: s, result, ms }) => {
       setTime('detect', ms);
       if (!live) { closeSession(s.id); return; }
-      apply(s, result as never, props.knownSize);
-      if (result.ok && props.knownSize) remesh(s.id, cornersOf(result.geometry), props.knownSize);
+      const kg = props.knownGrid;
+      const known = props.knownSize ?? (kg && {
+        width: kg.width, height: kg.height,
+        ...(result.ok ? { colClueDepth: result.geometry.colClueDepth, rowClueDepth: result.geometry.rowClueDepth } : kg.fallbackDepth),
+      });
+      apply(s, result as never, known);
+      if (result.ok && known) remesh(s.id, cornersOf(result.geometry), known);
     }).catch((e) => { if (live) setError(`Could not read the photo. (${why(e)})`); });
     return () => { // leaving the screen or a new file: free the worker's copy of the photo
       live = false;
