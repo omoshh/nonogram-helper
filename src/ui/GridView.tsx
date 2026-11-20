@@ -30,7 +30,7 @@ export function GridView(props: {
     pending.current = null;
     onTapRef.current?.(p.cell);
   };
-  useEffect(() => () => { if (pending.current) clearTimeout(pending.current.timer); }, []);
+  useEffect(() => flush, []); // leaving applies a waiting tap instead of dropping it
   const withClues = !!(rows && cols);
   // Tappable grids start fitted to the box width (cells may be small) and zoom to 28px cells that scroll.
   // Other grids: about 360px of cells, scrolling when wider.
@@ -101,8 +101,9 @@ export function GridView(props: {
   }
 
   return (
+    <>
+    {onTap && <button type="button" class="zoom-toggle" aria-pressed={zoomed} onClick={() => setZoomed(!zoomed)}>Zoom</button>}
     <div class="grid-scroll" ref={box}>
-      {onTap && <button type="button" class="zoom-toggle" aria-pressed={zoomed} onClick={() => setZoomed(!zoomed)}>Zoom</button>}
       <div
         class={`grid${onTap ? ' tappable' : ''}`}
         style={{
@@ -114,5 +115,6 @@ export function GridView(props: {
         {items}
       </div>
     </div>
+    </>
   );
 }

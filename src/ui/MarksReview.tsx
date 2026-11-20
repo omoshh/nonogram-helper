@@ -20,6 +20,7 @@ export function MarksReview(props: {
   const latest = useRef(marks);
   const [at, setAt] = useState(0);
   const [seen, setSeen] = useState(() => new Set([0]));
+  const [stepped, setStepped] = useState(false); // opens fitted; zooms to the cell only after a step
   const n = unsure.length;
   const current = n ? unsure[at] : undefined;
 
@@ -30,7 +31,7 @@ export function MarksReview(props: {
     latest.current = next;
     setMarks(next);
   };
-  const go = (to: number) => { setAt(to); setSeen(new Set(seen).add(to)); };
+  const go = (to: number) => { setAt(to); setSeen(new Set(seen).add(to)); setStepped(true); };
   const done = () => setTimeout(() => props.onDone(latest.current), TAP_WAIT_MS);
 
   return (
@@ -53,7 +54,7 @@ export function MarksReview(props: {
         </>
       )}
       <GridView width={rec.width} height={rec.height} cells={marks} rows={rec.rows} cols={rec.cols}
-        givens={givens} ringed={ringed} focus={current} onTap={(c) => put(c, (o) => CYCLE[o])} />
+        givens={givens} ringed={ringed} focus={stepped ? current : undefined} onTap={(c) => put(c, (o) => CYCLE[o])} />
       <div class="solve-bar">
         <button type="button" onClick={props.onCancel}>Cancel</button>
         <button type="button" class="primary" disabled={seen.size < n} onClick={done}>Check</button>

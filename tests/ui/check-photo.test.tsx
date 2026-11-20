@@ -100,6 +100,21 @@ test('a tap just before Check still counts', async () => {
   expect((await getPuzzle(ID))!.lastMarks![200]).toBe(FILLED);
 });
 
+test('the review opens fitted with the rings in view; a step zooms to that cell', async () => {
+  const spy = vi.fn();
+  Element.prototype.scrollIntoView = spy;
+  const { container } = await toReview();
+  const px = () => parseFloat((container.querySelector('.grid') as HTMLElement).style.getPropertyValue('--cell'));
+  expect(px() * W).toBeLessThanOrEqual(window.innerWidth);
+  expect(btn('Zoom').getAttribute('aria-pressed')).toBe('false');
+  expect(spy).not.toHaveBeenCalled();
+  expect(cellEl(container, 5).className).toContain('ring');
+  fireEvent.click(btn('Next'));
+  expect(px()).toBeGreaterThanOrEqual(28);
+  expect(spy.mock.contexts.at(-1)).toBe(cellEl(container, 100));
+  expect(container.querySelector('.grid-scroll')!.contains(btn('Zoom'))).toBe(false);
+});
+
 test('no unsure cells: no stepper, Check enabled at once', async () => {
   read([]);
   await toReview();

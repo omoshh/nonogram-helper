@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
-import { render, screen, fireEvent, cleanup } from '@testing-library/preact';
+import { readFileSync } from 'node:fs';
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/preact';
 import { FILLED } from '../../src/core/types';
 import { GridView } from '../../src/ui/GridView';
 
@@ -71,4 +72,27 @@ it('focus zooms in and scrolls that cell into view', () => {
   const { container } = mount({ focus: 7, cells: Uint8Array.from({ length: W * 2 }, () => FILLED) });
   expect(cellPx(container)).toBeGreaterThanOrEqual(28);
   expect(spy.mock.contexts[0]).toBe(at(container, 7));
+});
+
+it('the Zoom button sits outside the scrolling box, so it never scrolls away', () => {
+  const { container } = mount();
+  const zoom = screen.getByRole('button', { name: 'Zoom' });
+  expect(container.querySelector('.grid-scroll')!.contains(zoom)).toBe(false);
+});
+
+it('a tap still waiting when the grid unmounts is applied, not lost', () => {
+  const onTap = vi.fn();
+  const { container, unmount } = mount({ onTap });
+  vi.useFakeTimers();
+  fireEvent.click(at(container, 3), { detail: 1 });
+  act(() => unmount());
+  expect(onTap).toHaveBeenCalledWith(3);
+  vi.advanceTimersByTime(1000);
+  expect(onTap).toHaveBeenCalledTimes(1);
+  vi.useRealTimers();
+});
+
+it('a ring keeps the square cell (no rounded disc)', () => {
+  const rule = readFileSync('src/style.css', 'utf8').match(/\.grid-cell\.ring\s*\{[^}]*\}/)![0];
+  expect(rule).not.toContain('border-radius');
 });
