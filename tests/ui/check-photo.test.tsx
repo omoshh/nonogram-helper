@@ -199,3 +199,17 @@ test('an old record with failed detection meshes with the longest clue lists', a
   fireEvent.click(btn('Use this grid'));
   await waitFor(() => expect(meshFromCornersAsync.mock.lastCall?.[2]).toMatchObject({ width: W, height: H, rowClueDepth: 3, colClueDepth: 1 }));
 });
+
+it('reminds to enter the printed cells before a photo when no givens are saved', async () => {
+  await putPuzzle({ ...record(), givens: [] });
+  location.hash = `#/p/${ID}/check`;
+  render(<App />);
+  await screen.findByText(/Enter the printed cells first/);
+});
+
+it('shows no givens reminder when givens are saved', async () => {
+  location.hash = `#/p/${ID}/check`;
+  render(<App />);
+  await screen.findByRole('button', { name: 'Check' });
+  expect(screen.queryByText(/Enter the printed cells first/)).toBeNull();
+});

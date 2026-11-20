@@ -114,6 +114,8 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
       <GridView width={rec.width} height={rec.height} cells={marks} rows={rec.rows} cols={rec.cols}
         givens={givens} marked={highlight ? new Set(highlight.cells) : undefined} markColor={highlight?.color} onTap={tap} />
       <PhotoPick label="Photo" onFile={(f) => { setPhotoError(''); setPhoto(f); }} />
+      {/* light-grey printed cells read as sure blanks when not saved as givens */}
+      {!rec.givens.length && <p class="hint">Enter the printed cells first (Givens), or they can read as blank.</p>}
       {photoError && <p class="error" role="alert">{photoError}</p>}
       {error && <p class="error" role="alert">{error}</p>}
       {checked === marks
