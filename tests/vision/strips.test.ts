@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cutStrip } from '../../src/vision/strips';
+import { cutStrip, cellPatches, cellView } from '../../src/vision/strips';
 import type { TableGeometry } from '../../src/vision/mesh';
 import type { GrayImage } from '../../src/vision/types';
 import { synthTable } from '../support/synthTable';
@@ -49,5 +49,41 @@ describe('cutStrip', () => {
       expect(at(s, j * px + 0.2 * px, px / 2), `cell ${j} left`).toBeGreaterThan(128);
       expect(at(s, j * px + px / 2, 0.2 * px), `cell ${j} top`).toBeGreaterThan(128);
     }
+  });
+});
+
+const mean = (im: GrayImage) => im.data.reduce((a, b) => a + b, 0) / im.data.length;
+describe('cellPatches / cellView', () => {
+  const run = (gg: TableGeometry, im: GrayImage) => cellPatches(im, gg, px);
+  it('one px x px patch per grid cell; gray givens are darker than blanks', () => {
+    const ps = run(g, img);
+    expect(ps.length).toBe(o.width * o.height);
+    expect(ps.every((p) => p.width === px && p.height === px)).toBe(true);
+    const m = ps.map(mean);
+    expect(Math.min(...m)).toBeLessThan(Math.max(...m) - 30);
+  });
+  it('blank cells show no grid line pixel, also under bend and perspective', () => {
+    const ps = run(g, img), m = ps.map(mean), blank = m.map((v) => v > 250);
+    expect(blank.filter(Boolean).length).toBeGreaterThan(30);
+    ps.forEach((p, i) => { if (blank[i]) expect(Math.min(...p.data)).toBeGreaterThanOrEqual(128); });
+    // a bent, perspective-warped table: every patch free of lines unless it is a gray given
+    const w = synthTable({ ...o, seed: 3 }), gw = { ...g, xs: Float32Array.from(w.corners, (p) => p.x), ys: Float32Array.from(w.corners, (p) => p.y) };
+    const pw = run(gw, w.img), mw = pw.map(mean);
+    pw.forEach((p, i) => { if (mw[i] > 250) expect(Math.min(...p.data)).toBeGreaterThanOrEqual(128); });
+  });
+  it('cellView is 2px x 2px and its centre matches the patch centre', () => {
+    const ps = run(g, img);
+    for (const k of [0, 17, o.width * o.height - 1]) {
+      const v = cellView(img, g, k, px);
+      expect([v.width, v.height]).toEqual([2 * px, 2 * px]);
+      expect(Math.abs(at(v, px, px) - at(ps[k], px / 2, px / 2))).toBeLessThanOrEqual(10);
+    }
+  });
+  it('samples outside the photo are clamped, not NaN or thrown', () => {
+    const off = { ...g, ys: g.ys.map((y) => y + 5000) };
+    const ps = run(off, img), v = cellView(img, off, 0, px);
+    expect(ps.every((p) => p.data.length === px * px)).toBe(true);
+    expect(v.data.length).toBe(4 * px * px);
+    expect(mean(ps[0])).toBe(mean(ps[0])); // not NaN
   });
 });

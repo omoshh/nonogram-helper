@@ -38,3 +38,21 @@ export function cutStrip(upright: GrayImage, g: TableGeometry, line: LineRef, px
   // column clue cells side by side, top cell first; each cell stays upright so its digits read normally
   return render(upright, g, g.colClueDepth * px, px, (x, y) => [c + (x % px) / px, Math.floor(x / px) + y / px]);
 }
+
+export const CELL_INSET = 0.15; // fraction of a cell skipped on each side (grid lines)
+
+/** One px x px patch per grid cell, row-major over g.height x g.width, covering cell coords [INSET, 1-INSET]^2. */
+export function cellPatches(upright: GrayImage, g: TableGeometry, px: number): GrayImage[] {
+  const out: GrayImage[] = [], span = 1 - 2 * CELL_INSET;
+  for (let r = 0; r < g.height; r++) for (let c = 0; c < g.width; c++) {
+    const c0 = g.rowClueDepth + c + CELL_INSET, r0 = g.colClueDepth + r + CELL_INSET;
+    out.push(render(upright, g, px, px, (x, y) => [c0 + (x / px) * span, r0 + (y / px) * span]));
+  }
+  return out;
+}
+
+/** Grid cell `cell` (row-major) plus half a cell of context on each side, 2px x 2px, for the review crop. */
+export function cellView(upright: GrayImage, g: TableGeometry, cell: number, px: number): GrayImage {
+  const c0 = g.rowClueDepth + (cell % g.width) - 0.5, r0 = g.colClueDepth + Math.floor(cell / g.width) - 0.5;
+  return render(upright, g, 2 * px, 2 * px, (x, y) => [c0 + x / (2 * px) * 2, r0 + y / (2 * px) * 2]);
+}
