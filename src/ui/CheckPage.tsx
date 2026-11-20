@@ -36,7 +36,7 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
   const [photo, setPhoto] = useState<File | null>(null);
   const [reading, setReading] = useState(false);
   const [photoError, setPhotoError] = useState('');
-  const [review, setReview] = useState<{ cells: Uint8Array; unsure: number[]; views: string[] } | null>(null);
+  const [review, setReview] = useState<{ cells: Uint8Array; unsure: number[]; retake: boolean; views: string[] } | null>(null);
   const open = useRef<{ session: number | null; urls: string[] }>({ session: null, urls: [] });
   const release = () => {
     if (open.current.session !== null) closeSession(open.current.session);
@@ -60,7 +60,7 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
       const r = await readMarksAsync(sessionId, g, rec.givens);
       setTime('marks', r.ms);
       open.current.urls = r.views.map((b) => URL.createObjectURL(b));
-      setReview({ cells: r.cells, unsure: r.unsure, views: open.current.urls });
+      setReview({ cells: r.cells, unsure: r.unsure, retake: r.retake, views: open.current.urls });
     } catch (e) {
       setPhotoError(`Could not read the marks. (${e instanceof Error ? e.message : String(e)})`);
     } finally {

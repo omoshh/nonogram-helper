@@ -26,9 +26,9 @@ const record = (): PuzzleRecord => ({
   givens: [3], answerDigits: [], reference: Array(W * H).fill(0), status: 'unique',
   createdAt: '2026-11-01T10:00:00.000Z', journal: 'J', page: '1', lastMarks: Array(W * H).fill(EMPTY),
 });
-const read = (unsure: number[]) => {
+const read = (unsure: number[], retake = false) => {
   const cells = new Uint8Array(W * H); cells[1] = FILLED; cells[3] = FILLED;
-  readMarksAsync.mockResolvedValue({ cells, unsure, views: unsure.map(() => new Blob(['x'])), ms: 9 });
+  readMarksAsync.mockResolvedValue({ cells, unsure, retake, views: unsure.map(() => new Blob(['x'])), ms: 9 });
 };
 
 beforeEach(async () => {
@@ -121,6 +121,23 @@ test('no unsure cells: no stepper, Check enabled at once', async () => {
   screen.getByRole('heading', { name: '0 cells to check' });
   expect(screen.queryByRole('button', { name: 'Next' })).toBeNull();
   expect(btn('Check').disabled).toBe(false);
+});
+
+const RETAKE = 'Part of the page is in shadow or blurred. A new photo will read better.';
+
+test('a retake read says so above the review, and the review still works', async () => {
+  read([5, 100, 900], true);
+  const { container } = await toReview();
+  screen.getByText(RETAKE);
+  fireEvent.click(btn('Next')); fireEvent.click(btn('Next'));
+  expect(btn('Check').disabled).toBe(false);
+  fireEvent.click(btn('Check'));
+  await waitFor(() => expect(container.querySelector('.mode-switch[aria-label="Tap sets"]')).not.toBeNull());
+});
+
+test('a normal read shows no retake line', async () => {
+  await toReview();
+  expect(screen.queryByText(RETAKE)).toBeNull();
 });
 
 test('one unsure cell reads "1 cell to check"', async () => {

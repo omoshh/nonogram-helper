@@ -21,7 +21,7 @@ export type VisionResponse =
   | { id: number; ok: true; kind: 'mesh'; geometry: TableGeometry }
   | { id: number; ok: true; kind: 'rotate'; session: PhotoSession; result: DetectResult }
   | { id: number; ok: true; kind: 'strips'; rows: Blob[]; cols: Blob[] }
-  | { id: number; ok: true; kind: 'marks'; cells: Uint8Array; unsure: number[]; views: Blob[]; ms: number }
+  | { id: number; ok: true; kind: 'marks'; cells: Uint8Array; unsure: number[]; retake: boolean; views: Blob[]; ms: number }
   | { id: number; ok: true; kind: 'close' }
   | { id: number; ok: false; error: string };
 
@@ -96,9 +96,9 @@ async function handle(req: VisionRequest): Promise<{ msg: VisionResponse; transf
     case 'marks': {
       const s = session(req.sessionId);
       const t0 = performance.now();
-      const { cells, unsure } = readMarks(cellPatches(s.upright, req.g, MARK_PX), new Set(req.givens), req.g.width);
+      const { cells, unsure, retake } = readMarks(cellPatches(s.upright, req.g, MARK_PX), new Set(req.givens), req.g.width);
       const views = await Promise.all(unsure.map((cell) => png(cellView(s.upright, req.g, cell, 48))));
-      return { msg: { id, ok: true, kind: 'marks', cells, unsure, views, ms: performance.now() - t0 } };
+      return { msg: { id, ok: true, kind: 'marks', cells, unsure, retake, views, ms: performance.now() - t0 } };
     }
     case 'close':
       if (cur?.id === req.sessionId) cur = null;

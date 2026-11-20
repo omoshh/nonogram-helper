@@ -108,6 +108,36 @@ describe('readMarks', () => {
     expect(r.overrides).toBe(1);
   });
 
+  const shade = (p: GrayImage, k: number) => { for (let j = 0; j < p.data.length; j++) p.data[j] = Math.round(p.data[j] * k); return p; };
+
+  it('a shadow over blank cells of an empty grid is unsure, never a silent fill', () => {
+    const ps = many('blank', 100);
+    for (let i = 90; i < 100; i++) shade(ps[i], 0.6 + 0.03 * (i - 90)); // a ramp into the corner
+    const r = readMarks(ps, new Set(), 10);
+    for (let i = 90; i < 100; i++) expect(r.cells[i] !== FILLED || r.unsure.includes(i)).toBe(true);
+    expect(r.retake).toBe(true);
+  });
+
+  it('dots in a deep shadow are unsure, never silent fills', () => {
+    const { patches } = grid(0);
+    const ps = [...patches, ...many('dot', 5).map((p) => shade(p, 0.4))];
+    const r = readMarks(ps, new Set(), ps.length);
+    for (let i = 120; i < 125; i++) expect(r.cells[i] !== FILLED || r.unsure.includes(i)).toBe(true);
+  });
+
+  it('a faint centred dot is unsure, not a sure blank', () => {
+    const { patches } = grid(0);
+    const faint = patch('blank');
+    for (let y = 9; y < 15; y++) for (let x = 9; x < 15; x++) faint.data[y * N + x] = 210; // ~0.09 contrast
+    const r = readMarks([...patches, faint], new Set(), patches.length + 1);
+    expect(r.unsure).toContain(120);
+  });
+
+  it('retake is false when unsure stays within 1 % of the cells', () => {
+    const { patches } = grid(0);
+    expect(readMarks(patches, new Set(), patches.length).retake).toBe(false);
+  });
+
   it('an all-blank grid stays all UNKNOWN with nothing unsure', () => {
     const r = readMarks(many('blank', 100), new Set(), 100);
     expect(Array.from(r.cells)).toEqual(Array(100).fill(UNKNOWN));

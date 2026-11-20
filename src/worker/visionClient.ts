@@ -84,9 +84,9 @@ export async function readMarksAsync(
   sessionId: number,
   g: TableGeometry,
   givens: number[],
-): Promise<{ cells: Uint8Array; unsure: number[]; views: Blob[]; ms: number }> {
-  const { cells, unsure, views, ms } = await request<'marks'>({ kind: 'marks', sessionId, g, givens });
-  return { cells, unsure, views, ms };
+): Promise<{ cells: Uint8Array; unsure: number[]; retake: boolean; views: Blob[]; ms: number }> {
+  const { cells, unsure, retake, views, ms } = await request<'marks'>({ kind: 'marks', sessionId, g, givens });
+  return { cells, unsure, retake, views, ms };
 }
 
 export function closeSession(sessionId: number): void {
