@@ -2,7 +2,8 @@ import type { GrayImage, Point } from '../vision/types';
 import type { LineRef } from '../core/types';
 import { toGray, downscale, rotate90 } from '../vision/image';
 import { detect, meshFromCorners, type TableGeometry, type TableSize } from '../vision/mesh';
-import { cutStrip } from '../vision/strips';
+import { cutStrip, cellPatches, cellView } from '../vision/strips';
+import { readMarks, MARK_PX } from '../vision/marks';
 
 export interface PhotoSession { id: number; width: number; height: number; preview: ImageBitmap }
 export type DetectResult = ReturnType<typeof detect>;
@@ -12,6 +13,7 @@ export type VisionRequest =
   | { id: number; kind: 'mesh'; sessionId: number; corners: Point[]; size: TableSize }
   | { id: number; kind: 'rotate'; sessionId: number }
   | { id: number; kind: 'strips'; sessionId: number; g: TableGeometry; px: number }
+  | { id: number; kind: 'marks'; sessionId: number; g: TableGeometry; givens: number[] }
   | { id: number; kind: 'close'; sessionId: number };
 
 export type VisionResponse =
@@ -19,6 +21,7 @@ export type VisionResponse =
   | { id: number; ok: true; kind: 'mesh'; geometry: TableGeometry }
   | { id: number; ok: true; kind: 'rotate'; session: PhotoSession; result: DetectResult }
   | { id: number; ok: true; kind: 'strips'; rows: Blob[]; cols: Blob[] }
+  | { id: number; ok: true; kind: 'marks'; cells: Uint8Array; unsure: number[]; views: Blob[]; ms: number }
   | { id: number; ok: true; kind: 'close' }
   | { id: number; ok: false; error: string };
 
@@ -89,6 +92,13 @@ async function handle(req: VisionRequest): Promise<{ msg: VisionResponse; transf
         Promise.all(Array.from({ length: n }, (_, index) => png(cutStrip(s.upright, req.g, { axis, index } as LineRef, req.px))));
       const [rows, cols] = await Promise.all([cut('row', req.g.height), cut('col', req.g.width)]);
       return { msg: { id, ok: true, kind: 'strips', rows, cols } };
+    }
+    case 'marks': {
+      const s = session(req.sessionId);
+      const t0 = performance.now();
+      const { cells, unsure } = readMarks(cellPatches(s.upright, req.g, MARK_PX), new Set(req.givens), req.g.width);
+      const views = await Promise.all(unsure.map((cell) => png(cellView(s.upright, req.g, cell, 48))));
+      return { msg: { id, ok: true, kind: 'marks', cells, unsure, views, ms: performance.now() - t0 } };
     }
     case 'close':
       if (cur?.id === req.sessionId) cur = null;

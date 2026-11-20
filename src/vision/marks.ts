@@ -115,8 +115,8 @@ function nonFill(vals: number[]): number[] {
   return b - a >= SPLIT_GAP ? vals.filter((v) => v > m) : vals;
 }
 
-/** `width` = grid columns (patches are row-major); without it the patches are treated as one row. */
-export function readMarks(patches: GrayImage[], givens: ReadonlySet<number>, width = patches.length): MarksResult {
+/** `width` = grid columns (patches are row-major); required: a wrong width silently degrades real photos. */
+export function readMarks(patches: GrayImage[], givens: ReadonlySet<number>, width: number): MarksResult {
   const cells = new Uint8Array(patches.length);
   const unsure: number[] = [];
   const own = patches.map((p) => Math.max(percentile(p.data, PAPER_PCT), 1));

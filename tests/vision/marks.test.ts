@@ -51,7 +51,7 @@ describe('readMarks', () => {
   for (const [name, shift] of [['normal', 0], ['dark paper', -40]] as const) {
     it(`reads 60 blank + 30 dot + 30 filled exactly (${name})`, () => {
       const { patches, expected } = grid(shift);
-      const r = readMarks(patches, new Set());
+      const r = readMarks(patches, new Set(), patches.length);
       expect(Array.from(r.cells)).toEqual(expected);
       expect(r.unsure).toEqual([]);
     });
@@ -60,7 +60,7 @@ describe('readMarks', () => {
   it('ignores printed digits on blank and filled cells', () => {
     const { patches, expected } = grid(0);
     const ps = [...patches, patch('blank', { digit: '7' }), patch('filled', { digit: '7' })];
-    const r = readMarks(ps, new Set());
+    const r = readMarks(ps, new Set(), ps.length);
     expect(r.cells[120]).toBe(UNKNOWN);
     expect(r.cells[121]).toBe(FILLED);
     expect(Array.from(r.cells.slice(0, 120))).toEqual(expected);
@@ -69,7 +69,7 @@ describe('readMarks', () => {
   for (const d of ['1', '0'] as const) {
     it(`ignores a printed "${d}" on blank and filled cells`, () => {
       const { patches, expected } = grid(0);
-      const r = readMarks([...patches, patch('blank', { digit: d }), patch('filled', { digit: d })], new Set());
+      const r = readMarks([...patches, patch('blank', { digit: d }), patch('filled', { digit: d })], new Set(), patches.length + 2);
       expect(r.cells[120]).toBe(UNKNOWN);
       expect(r.cells[121]).toBe(FILLED);
       expect(Array.from(r.cells.slice(0, 120))).toEqual(expected);
@@ -79,13 +79,13 @@ describe('readMarks', () => {
 
   it('dot + digit is EMPTY or unsure', () => {
     const { patches } = grid(0);
-    const r = readMarks([...patches, patch('dot', { digit: '7' })], new Set());
+    const r = readMarks([...patches, patch('dot', { digit: '7' })], new Set(), patches.length + 1);
     expect(r.cells[120] === EMPTY || r.unsure.includes(120)).toBe(true);
   });
 
   it('givens are FILLED and never unsure, even on a white patch', () => {
     const { patches } = grid(0);
-    const r = readMarks(patches, new Set([0, 1]));
+    const r = readMarks(patches, new Set([0, 1]), patches.length);
     expect(r.cells[0]).toBe(FILLED);
     expect(r.cells[1]).toBe(FILLED);
     expect(r.unsure).not.toContain(0);
@@ -94,12 +94,12 @@ describe('readMarks', () => {
 
   it('a patch half-way between dot and filled is unsure', () => {
     const { patches } = grid(0);
-    const r = readMarks([...patches, patch('mid')], new Set());
+    const r = readMarks([...patches, patch('mid')], new Set(), patches.length + 1);
     expect(r.unsure).toContain(120);
   });
 
   it('an all-blank grid stays all UNKNOWN with nothing unsure', () => {
-    const r = readMarks(many('blank', 100), new Set());
+    const r = readMarks(many('blank', 100), new Set(), 100);
     expect(Array.from(r.cells)).toEqual(Array(100).fill(UNKNOWN));
     expect(r.unsure).toEqual([]);
   });

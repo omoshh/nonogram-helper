@@ -80,6 +80,15 @@ export async function stripsAsync(
   return { rows, cols };
 }
 
+export async function readMarksAsync(
+  sessionId: number,
+  g: TableGeometry,
+  givens: number[],
+): Promise<{ cells: Uint8Array; unsure: number[]; views: Blob[]; ms: number }> {
+  const { cells, unsure, views, ms } = await request<'marks'>({ kind: 'marks', sessionId, g, givens });
+  return { cells, unsure, views, ms };
+}
+
 export function closeSession(sessionId: number): void {
   request<'close'>({ kind: 'close', sessionId }).catch(() => {});
 }
