@@ -5,108 +5,142 @@ export const MARK_PX = 24;
 
 export interface MarksResult { cells: Uint8Array; unsure: number[] }
 
-// ---- tunable constants (task 4 tunes these on real photos) ----
-const DARK = 0.3;            // a pixel is ink when it is this much darker than the paper (0..1)
-const PAPER_PCT = 0.9;       // paper level = this percentile of a patch
-const GLOBAL_PAPER_PCT = 0.8; // ... or of all patches, when a patch is mostly dark
-const MOSTLY_DARK = 0.8;     // patch paper below this share of the global paper = mostly dark
-const MIN_BLOB = 4;          // px; smaller specks are noise
-const DIGIT_FILL = 0.7;      // digit: dark area / bbox area below this (7, rings 0/6/8/9) ...
-const DIGIT_SIZE = 0.375;    // ... and bbox side at least this share of the patch (9/24)
-const DIGIT_NARROW = 3;      // ... or a long straight stroke (1): short side at most this many px
-const DOT_MIN_INK = 0.02;    // ink share below this = blank
-const NOISE_INK = 0.008;     // between NOISE_INK and DOT_MIN_INK: unexplained ink -> unsure
-const FILLED_MIN_INK = 0.25; // used when the photo has only one mark group
-const SPLIT_RATIO = 3;       // two groups only when their centres differ by this factor
-const SPLIT_CLAMP: [number, number] = [0.12, 0.4]; // dot/filled boundary stays in this range
-const BAND = 1.5;            // ink within boundary/BAND .. boundary*BAND = unsure
-const OFF_CENTRE = 0.33;     // dot blob centre further than this share of the patch from the middle = unsure
+// ---- constants, tuned on the 8 labelled photos (task 4); pixel sizes assume MARK_PX = 24 ----
+const PAPER_PCT = 0.9;       // a patch's own paper level = this percentile
+const PAPER_WIDE = 8;        // cells: window radius for the photo-wide paper level (beats big filled blocks)
+const PAPER_LIKE = 0.93;     // a patch is paper-like when its paper level is >= this share of the wide level
+const PAPER_NEAR = 3;        // cells: local paper = NEAR_PCT of paper-like patches within this radius (shadows)
+const NEAR_PCT = 0.75;
+const SPLIT_GAP = 0.2;       // fill/non-fill groups are only split when their centres differ this much
+const MIN_SPREAD = 0.015;    // floor for the non-fill group's interquartile range
+const FILL_K = 3.4;          // filled = fill score below non-fill median - FILL_K spreads ...
+const FILL_BAND = 0.4;       // ... unsure within +-FILL_BAND spreads of that
+const DEEP_K = 6;            // a strong dot overrides "filled" unless the cell is deeper than DEEP_K spreads
+const DOT_STRONG = 0.34;     // dot contrast that marks a dot even on greyish paper (shadow, smudge)
+const DOT_BOX = 5;           // px: dot contrast = darkest DOT_BOX^2 box vs the patch median ...
+const DOT_EDGE = 1;          // ... with the box at least this far from the patch edge
+const DOT_MIN = 0.12;        // dot contrast above this = dot ...
+const DOT_BAND = 1.1;        // ... unsure within /DOT_BAND .. *DOT_BAND
+const OFF_CENTRE = 0.42;     // dot box centre further than this share of the patch from the middle = unsure
+const DARK = 0.3;            // a pixel is ink when this much darker than the patch median
+const BIG_DOT = 135;         // px of ink: a "dot" larger than any real dot (half-way to filled) = unsure
+const DIGIT_X = 15, DIGIT_Y = 9; // printed region numbers sit in this bottom-right corner, cut by the patch edge
+const LINE_W = 3, LINE_L = 8;    // grid-line remnant: edge-touching ink at most LINE_W thick, LINE_L long
+
+const S = MARK_PX;
 
 const percentile = (vals: ArrayLike<number>, p: number) => {
-  const s = Array.from(vals).sort((a, b) => a - b);
+  const s = Float64Array.from(vals).sort();
   return s[Math.min(s.length - 1, Math.floor(p * s.length))];
 };
 
-interface Features { ink: number; blobOffset: number } // ink = share of patch covered by non-digit dark blobs
-
-function features(img: GrayImage, paper: number): Features {
-  const { width: w, height: h, data } = img;
-  const dark = new Uint8Array(w * h);
-  for (let i = 0; i < dark.length; i++) dark[i] = (paper - data[i]) / paper > DARK ? 1 : 0;
-  const seen = new Uint8Array(w * h);
-  let ink = 0, bestArea = 0, bestOffset = 0;
-  for (let s = 0; s < dark.length; s++) {
-    if (!dark[s] || seen[s]) continue;
-    const stack = [s];
+/** Copy of the patch with printed digits and grid-line remnants painted over with `med`. */
+function maskPrint(data: Uint8Array, med: number): Float64Array {
+  const out = Float64Array.from(data), seen = new Uint8Array(S * S);
+  const ink = (k: number) => (med - data[k]) / med > DARK;
+  for (let s = 0; s < S * S; s++) {
+    if (seen[s] || !ink(s)) continue;
+    const stack = [s], px: number[] = [];
     seen[s] = 1;
-    let area = 0, sx = 0, sy = 0, x0 = w, x1 = 0, y0 = h, y1 = 0;
+    let x0 = S, x1 = 0, y0 = S, y1 = 0;
     while (stack.length) {
-      const p = stack.pop()!;
-      const x = p % w, y = (p / w) | 0;
-      area++; sx += x; sy += y;
+      const p = stack.pop()!, x = p % S, y = (p / S) | 0;
+      px.push(p);
       x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
-      for (const q of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1]) {
-        if (q >= 0 && dark[q] && !seen[q]) { seen[q] = 1; stack.push(q); }
+      for (const q of [x > 0 ? p - 1 : -1, x < S - 1 ? p + 1 : -1, y > 0 ? p - S : -1, y < S - 1 ? p + S : -1]) {
+        if (q >= 0 && !seen[q] && ink(q)) { seen[q] = 1; stack.push(q); }
       }
     }
-    if (area < MIN_BLOB) continue;
-    const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
-    const long = Math.max(bw, bh) >= DIGIT_SIZE * Math.min(w, h);
-    if (long && (area / (bw * bh) < DIGIT_FILL || Math.min(bw, bh) <= DIGIT_NARROW)) continue; // printed digit
-    ink += area;
-    if (area > bestArea) {
-      bestArea = area;
-      bestOffset = Math.hypot(sx / area - (w - 1) / 2, sy / area - (h - 1) / 2) / Math.min(w, h);
-    }
+    const w = x1 - x0 + 1, h = y1 - y0 + 1, edge = x0 === 0 || y0 === 0 || x1 === S - 1 || y1 === S - 1;
+    if (x0 >= DIGIT_X && y0 >= DIGIT_Y && (x1 === S - 1 || y1 === S - 1)) {
+      for (let y = DIGIT_Y; y < S; y++) for (let x = DIGIT_X; x < S; x++) out[y * S + x] = med;
+    } else if (edge && Math.min(w, h) <= LINE_W && Math.max(w, h) >= LINE_L) for (const p of px) out[p] = med;
   }
-  return { ink: ink / (w * h), blobOffset: bestOffset };
+  return out;
 }
 
-/** 1-D 2-means on log(ink); returns the two centres (low, high) in ink units. */
-function twoMeans(vals: number[]): [number, number] {
-  const l = vals.map(Math.log);
-  let a = Math.min(...l), b = Math.max(...l);
-  for (let it = 0; it < 20; it++) {
-    const m = (a + b) / 2;
-    const lo = l.filter((v) => v <= m), hi = l.filter((v) => v > m);
+interface Features { fill: number; dot: number; off: number; area: number }
+
+function features(data: Uint8Array, paper: number, own: number): Features {
+  const med = Math.max(percentile(data, 0.5), 1), q = maskPrint(data, med);
+  let best = Infinity, bx = 0, by = 0, area = 0;
+  for (let y = DOT_EDGE; y + DOT_BOX <= S - DOT_EDGE; y++) for (let x = DOT_EDGE; x + DOT_BOX <= S - DOT_EDGE; x++) {
+    let sum = 0;
+    for (let dy = 0; dy < DOT_BOX; dy++) for (let dx = 0; dx < DOT_BOX; dx++) sum += q[(y + dy) * S + x + dx];
+    if (sum < best) { best = sum; bx = x; by = y; }
+  }
+  for (const v of q) if ((med - v) / med > DARK) area++;
+  return {
+    // median vs local paper, times (median vs own paper)^2: hatching is both darker and uneven
+    fill: (med / paper) * (med / own) ** 2,
+    dot: (med - best / DOT_BOX ** 2) / med,
+    off: Math.hypot(bx + DOT_BOX / 2 - S / 2, by + DOT_BOX / 2 - S / 2) / S,
+    area,
+  };
+}
+
+/** Local paper level per cell from paper-like neighbours, so lighting gradients and shadows cancel. */
+function paperLevels(own: number[], skip: (i: number) => boolean, width: number): number[] {
+  const height = Math.ceil(own.length / width);
+  const near = (i: number, r: number, ok: (j: number) => boolean) => {
+    const row = Math.floor(i / width), col = i % width, v: number[] = [];
+    for (let y = Math.max(0, row - r); y <= Math.min(height - 1, row + r); y++)
+      for (let x = Math.max(0, col - r); x <= Math.min(width - 1, col + r); x++) {
+        const j = y * width + x;
+        if (j < own.length && ok(j)) v.push(own[j]);
+      }
+    return v;
+  };
+  const wide = own.map((v, i) => {
+    const w = near(i, PAPER_WIDE, (j) => !skip(j));
+    return w.length ? percentile(w, PAPER_PCT) : v; // only givens around: they are never classified anyway
+  });
+  const like = own.map((v, i) => !skip(i) && v >= PAPER_LIKE * wide[i]);
+  return own.map((_, i) => {
+    const v = near(i, PAPER_NEAR, (j) => like[j]);
+    return v.length >= 3 ? percentile(v, NEAR_PCT) : wide[i];
+  });
+}
+
+/** Upper (non-fill) group of fill scores: 1-D 2-means, or everything when there is no clear second group. */
+function nonFill(vals: number[]): number[] {
+  let a = Math.min(...vals), b = Math.max(...vals), m = (a + b) / 2;
+  for (let it = 0; it < 30; it++) {
+    m = (a + b) / 2;
+    const lo = vals.filter((v) => v <= m), hi = vals.filter((v) => v > m);
     if (!lo.length || !hi.length) break;
     a = lo.reduce((s, v) => s + v, 0) / lo.length;
     b = hi.reduce((s, v) => s + v, 0) / hi.length;
   }
-  return [Math.exp(a), Math.exp(b)];
+  return b - a >= SPLIT_GAP ? vals.filter((v) => v > m) : vals;
 }
 
-export function readMarks(patches: GrayImage[], givens: ReadonlySet<number>): MarksResult {
+/** `width` = grid columns (patches are row-major); without it the patches are treated as one row. */
+export function readMarks(patches: GrayImage[], givens: ReadonlySet<number>, width = patches.length): MarksResult {
   const cells = new Uint8Array(patches.length);
   const unsure: number[] = [];
-  const own = patches.map((p, i) => (givens.has(i) ? -1 : percentile(p.data, PAPER_PCT))).filter((v) => v >= 0);
-  const globalPaper = own.length ? percentile(own, GLOBAL_PAPER_PCT) : 255;
-
+  const own = patches.map((p) => Math.max(percentile(p.data, PAPER_PCT), 1));
+  const paper = paperLevels(own, (i) => givens.has(i), width);
   const feats = new Map<number, Features>();
   patches.forEach((p, i) => {
-    if (givens.has(i)) { cells[i] = FILLED; return; }
-    const mine = percentile(p.data, PAPER_PCT);
-    const paper = mine < MOSTLY_DARK * globalPaper ? globalPaper : mine;
-    feats.set(i, features(p, Math.max(paper, 1)));
+    if (givens.has(i)) cells[i] = FILLED;
+    else feats.set(i, features(p.data, paper[i], own[i]));
   });
+  if (!feats.size) return { cells, unsure };
 
-  const marked = [...feats].filter(([, f]) => f.ink >= DOT_MIN_INK);
-  let boundary = Infinity; // ink above this = filled
-  if (marked.length) {
-    const [lo, hi] = twoMeans(marked.map(([, f]) => f.ink));
-    boundary = hi / lo >= SPLIT_RATIO ? Math.min(Math.max(Math.sqrt(lo * hi), SPLIT_CLAMP[0]), SPLIT_CLAMP[1])
-      : (hi > FILLED_MIN_INK ? 0 : Infinity); // one group: all filled or all dots
-  }
+  const upper = nonFill([...feats.values()].map((f) => f.fill));
+  const mid = percentile(upper, 0.5);
+  const spread = Math.max(percentile(upper, 0.75) - percentile(upper, 0.25), MIN_SPREAD);
+  const cut = mid - FILL_K * spread;
 
   for (const [i, f] of feats) {
-    if (f.ink < DOT_MIN_INK) {
-      if (f.ink >= NOISE_INK) unsure.push(i);
-      continue;
-    }
-    const filled = f.ink > boundary;
-    cells[i] = filled ? FILLED : EMPTY;
-    const nearBorder = boundary > 0 && boundary < Infinity && f.ink > boundary / BAND && f.ink < boundary * BAND;
-    if (nearBorder || (!filled && f.blobOffset > OFF_CENTRE)) unsure.push(i);
+    const strong = f.dot > DOT_STRONG && f.fill > mid - DEEP_K * spread;
+    const filled = f.fill < cut && !strong;
+    const fillDoubt = !strong && Math.abs(f.fill - cut) < FILL_BAND * spread;
+    const dot = !filled && f.dot > DOT_MIN;
+    const dotDoubt = !filled && f.dot > DOT_MIN / DOT_BAND && f.dot < DOT_MIN * DOT_BAND;
+    cells[i] = filled ? FILLED : dot ? EMPTY : UNKNOWN;
+    if (fillDoubt || dotDoubt || (dot && (f.off > OFF_CENTRE || f.area > BIG_DOT))) unsure.push(i);
   }
   return { cells, unsure: unsure.sort((a, b) => a - b) };
 }

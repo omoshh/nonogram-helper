@@ -25,17 +25,18 @@ function patch(kind: Kind, o: { digit?: Digit; shift?: number } = {}): GrayImage
       put(x, y, v);
     }
   }
-  if (o.digit === '1') for (let y = 3; y < 15; y++) put(17, y, 0);
+  // Real photos print the region number in the cell's bottom-right corner, cut by the patch edge.
+  if (o.digit === '1') for (let y = 12; y < N; y++) put(21, y, 0);
   if (o.digit === '0') {
-    for (let y = 3; y < 15; y++) for (let x = 13; x < 21; x++) {
-      const e = ((x - 16.5) / 4) ** 2 + ((y - 8.5) / 6) ** 2;
+    for (let y = 12; y < N; y++) for (let x = 17; x < N; x++) {
+      const e = ((x - 21) / 4) ** 2 + ((y - 18) / 6) ** 2;
       if (e <= 1 && e > 0.4) put(x, y, 0);
     }
   }
   if (o.digit === '7') {
-    // a "7": 1-px top bar and a diagonal, 12 px tall, off-centre
-    for (let x = 14; x < 20; x++) put(x, 3, 0);
-    for (let i = 0; i < 11; i++) put(19 - Math.floor(i / 2), 4 + i, 0);
+    // a "7": 1-px top bar and a diagonal, 12 px tall, down to the bottom edge
+    for (let x = 18; x < N; x++) put(x, 12, 0);
+    for (let i = 0; i < 11; i++) put(23 - Math.floor(i / 2), 13 + i, 0);
   }
   return { width: N, height: N, data };
 }
