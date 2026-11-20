@@ -15,7 +15,7 @@ export interface PhotoLabel {
   gridCorners: [number, number][];
 }
 
-const NAMES = [
+export const NAMES = [
   'PXL_20261119_101316578.MP',
   'PXL_20261119_101959074.MP',
   'PXL_20261119_103145555.MP',
@@ -31,6 +31,9 @@ const NAMES = [
   'PXL_20261119_103900588.MP~2',
   'PXL_20261119_103924589.MP',
   '25x40-empty',
+  '25x40-partial-1',
+  '25x40-partial-2',
+  '25x40-solved',
   'PXL_20261119_103513249.MP',
   'PXL_20261119_103520716.MP',
   'PXL_20261119_103529094.MP',

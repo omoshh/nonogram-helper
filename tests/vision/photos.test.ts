@@ -3,9 +3,9 @@ import { KNOWN_SIZES } from '../../src/core/clues';
 import { PHOTOS, forEachPhoto } from './photos';
 
 describe('photo labels (no photos needed)', () => {
-  it('has 20 labels, 15 main and 5 other', () => {
-    expect(PHOTOS).toHaveLength(20);
-    expect(PHOTOS.filter((p) => p.journal === 'main')).toHaveLength(15);
+  it('has 23 labels, 18 main and 5 other', () => {
+    expect(PHOTOS).toHaveLength(23);
+    expect(PHOTOS.filter((p) => p.journal === 'main')).toHaveLength(18);
   });
 
   for (const p of PHOTOS) {
