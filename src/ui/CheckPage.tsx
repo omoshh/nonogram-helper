@@ -9,7 +9,7 @@ import { GridView } from './GridView';
 import { CYCLE, MarksReview } from './MarksReview';
 import { PhotoPick } from './PhotoPick';
 import { RecordGate, toPuzzle, usePuzzleRecord } from './PuzzlePage';
-import { ResultPanel, type Highlight } from './ResultPanel';
+import { ResultPanel, type Highlight, type Status } from './ResultPanel';
 
 type Mode = 'cycle' | Cell;
 const MODES: { mode: Mode; label: string }[] = [
@@ -32,6 +32,7 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
   // The marks that were checked; null hides the results until the next "Check".
   const [checked, setChecked] = useState<Uint8Array | null>(null);
   const [highlight, setHighlight] = useState<Highlight>(null);
+  const [status, setStatus] = useState<Status>({});
   const [error, setError] = useState('');
   const [photo, setPhoto] = useState<File | null>(null);
   const [reading, setReading] = useState(false);
@@ -118,6 +119,12 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
       </div>
       <GridView width={rec.width} height={rec.height} cells={marks} rows={rec.rows} cols={rec.cols}
         givens={givens} marked={highlight ? new Set(highlight.cells) : undefined} markKind={highlight?.kind} markValues={highlight?.values} onTap={tap} />
+      {(status.wrong || status.hint) && (
+        <p class="pills" role="status">
+          {!!status.wrong && <span class="pill pill-mistake">{status.wrong} wrong</span>}
+          {status.hint && <span class="pill pill-hint">1 hint</span>}
+        </p>
+      )}
       <PhotoPick label="Photo" onFile={(f) => { setPhotoError(''); setPhoto(f); }} />
       <p class="hint">Avoid the flashlight: daylight or a lamp from the side reads best.</p>
       {/* light-grey printed cells read as sure blanks when not saved as givens */}
@@ -125,7 +132,7 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
       {photoError && <p class="error" role="alert">{photoError}</p>}
       {error && <p class="error" role="alert">{error}</p>}
       {checked === marks
-        ? <ResultPanel puzzle={puzzle} marks={checked} reference={reference} onHighlight={setHighlight} />
+        ? <ResultPanel puzzle={puzzle} marks={checked} reference={reference} onHighlight={setHighlight} onStatus={setStatus} />
         : <div class="solve-bar"><button type="button" class="primary" onClick={() => check()}>Check</button></div>}
     </main>
   );

@@ -55,8 +55,10 @@ test('one wrong cell: mistakes one level per tap, hint refused only when tapped'
   expect(screen.queryByText('1 mistake.')).toBeNull();
   expect(container.querySelectorAll('.marked')).toHaveLength(0);
 
+  expect(screen.queryByText('1 wrong')).toBeNull(); // no pill before the count is asked for
   fireEvent.click(mistakes);
   screen.getByText('1 mistake.');
+  await screen.findByText('1 wrong');
   expect(screen.queryByText(/Rows:/)).toBeNull();
   fireEvent.click(button('Which rows and columns?'));
   screen.getByText('Rows: 1 (1). Columns: 5 (1).');
@@ -76,8 +78,10 @@ test('correct marks: hint levels appear one tap at a time', async () => {
   expect(hint.kind).toBe('line');
   const texts = ([1, 2, 3] as const).map((l) => hintText(P5, hint, l));
 
+  expect(screen.queryByText('1 hint')).toBeNull();
   fireEvent.click(await screen.findByRole('button', { name: 'Hint' }));
   await screen.findByText(texts[0]);
+  await screen.findByText('1 hint');
   expect(screen.queryByText(texts[1])).toBeNull();
   expect(container.querySelectorAll('.marked')).toHaveLength(0);
   fireEvent.click(button('Which cells?'));

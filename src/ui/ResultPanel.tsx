@@ -6,6 +6,9 @@ import { hintText, mistakesText } from '../core/text';
 import { hintAsync } from '../worker/client';
 import { setTime } from './DebugTimes';
 
+/** What the panel has already told: shown as pills by the grid. Nothing here is told earlier than the text. */
+export type Status = { wrong?: number; hint?: boolean };
+
 export type Highlight = { cells: number[]; kind: 'mistake' | 'hint'; values?: Map<number, number> } | null;
 
 /** Levels that say something new; past this the "more" button is gone. */
@@ -35,8 +38,9 @@ function hintCells(h: Hint): number[] {
 export function ResultPanel(props: {
   puzzle: Puzzle; marks: Uint8Array; reference: Uint8Array;
   onHighlight: (h: Highlight) => void;
+  onStatus?: (s: Status) => void;
 }) {
-  const { puzzle, marks, reference, onHighlight } = props;
+  const { puzzle, marks, reference, onHighlight, onStatus } = props;
   const mistakes = useMemo(() => findMistakes(puzzle, marks, reference), [puzzle, marks, reference]);
   const [mLevel, setMLevel] = useState(0);
   const [hint, setHint] = useState<Hint | null>(null);
@@ -53,6 +57,10 @@ export function ResultPanel(props: {
   const key = highlight ? `${highlight.kind}:${highlight.cells.join(',')}` : '';
   useEffect(() => { onHighlight(highlight); }, [key]);
   useEffect(() => () => onHighlight(null), []);
+  const wrong = mLevel >= 1 && mistakes.cells.length > 0 ? mistakes.cells.length : undefined;
+  const hinted = !!hint && hint.kind !== 'done';
+  useEffect(() => { onStatus?.({ wrong, hint: hinted }); }, [wrong, hinted]);
+  useEffect(() => () => onStatus?.({}), []);
 
   const askHint = async () => {
     if (busy) return;

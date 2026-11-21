@@ -3,6 +3,11 @@ import { FILLED, EMPTY } from '../core/types';
 
 /** Short enough to feel instant, long enough for a second tap. */
 const DOUBLE_TAP_MS = 250;
+/** px between cells; every 5th line adds BLOCK_GAP more, so 5×5 blocks stand out (keep in step with style.css). */
+const GAP = 1, BLOCK_GAP = 2;
+/** Track sizes: every 5th track (not the last) is BLOCK_GAP wider; the cell keeps --cell and the rest is gap. */
+const tracks = (n: number) => Array.from({ length: n }, (_, i) =>
+  (i % 5 === 4 && i < n - 1 ? `calc(var(--cell) + ${BLOCK_GAP}px)` : 'var(--cell)')).join(' ');
 
 export function GridView(props: {
   width: number; height: number; cells: Uint8Array;
@@ -41,8 +46,10 @@ export function GridView(props: {
   // shortcut: clue columns estimated at 2 chars per cell; box width read at render, not on resize.
   const clueCols = withClues ? Math.max(1, Math.ceil(Math.max(0, ...rows!.map((r) => r.join(' ').length)) / 2)) : 0;
   const boxWidth = box.current?.clientWidth || window.innerWidth - 32;
+  // Room taken by the gaps: GAP between all columns, BLOCK_GAP extra after every 5th.
+  const gaps = (width - 1 + (withClues ? 1 : 0)) * GAP + Math.floor((width - 1) / 5) * BLOCK_GAP;
   const cell = onTap
-    ? (zoomed ? 28 : Math.max(1, Math.floor(boxWidth / (width + clueCols))))
+    ? (zoomed ? 28 : Math.max(1, Math.floor((boxWidth - gaps) / (width + clueCols))))
     : Math.max(10, Math.min(32, Math.floor(360 / width)));
 
   useEffect(() => { if (focus !== undefined) setZoomed(true); }, [focus]);
@@ -88,10 +95,8 @@ export function GridView(props: {
       if (v === FILLED) cls += ' filled';
       else if (v === EMPTY) cls += ' empty';
       if (givens?.has(i)) cls += ' given';
-      if (c % 5 === 4 || c === width - 1) cls += ' edge-right';
-      if (r % 5 === 4 || r === height - 1) cls += ' edge-bottom';
-      if (c === 0) cls += ' edge-left';
-      if (r === 0) cls += ' edge-top';
+      if (c % 5 === 4 && c < width - 1) cls += ' block-right';
+      if (r % 5 === 4 && r < height - 1) cls += ' block-bottom';
       if (marked?.has(i)) {
         cls += ` marked ${markKind}`;
         const answer = markValues?.get(i);
@@ -113,7 +118,9 @@ export function GridView(props: {
         class={`grid${onTap ? ' tappable' : ''}`}
         style={{
           '--cell': `${cell}px`,
-          gridTemplateColumns: `${withClues ? 'auto ' : ''}repeat(${width}, var(--cell))`,
+          gap: `${GAP}px`,
+          gridTemplateColumns: `${withClues ? 'auto ' : ''}${tracks(width)}`,
+          gridTemplateRows: `${withClues ? 'auto ' : ''}${tracks(height)}`,
         }}
         onClick={tap}
       >

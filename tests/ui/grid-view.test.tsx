@@ -111,11 +111,11 @@ it('a hint cell carries its answer: fill or dot', () => {
   expect(at(container, 3).className).not.toContain('answer-'); // a hint with no answer: outline only
 });
 
-it('every 5th line and the outside get the 2px edge', () => {
+it('every 5th line (not the last) gets the wider block gap', () => {
   const { container } = mount();
-  expect(at(container, 4).classList.contains('edge-right')).toBe(true);
-  expect(at(container, W - 1).classList.contains('edge-right')).toBe(true);
-  expect(at(container, 5).classList.contains('edge-right')).toBe(false);
-  expect(at(container, 0).classList.contains('edge-left')).toBe(true);
-  expect(at(container, W).classList.contains('edge-bottom')).toBe(true);
+  expect(at(container, 4).classList.contains('block-right')).toBe(true);
+  expect(at(container, 5).classList.contains('block-right')).toBe(false);
+  expect(at(container, W - 1).classList.contains('block-right')).toBe(false);
+  const cols = (container.querySelector('.grid') as HTMLElement).style.gridTemplateColumns;
+  expect(cols.split('calc(').length - 1).toBe(4); // 25 columns: wider tracks after 5, 10, 15, 20
 });
