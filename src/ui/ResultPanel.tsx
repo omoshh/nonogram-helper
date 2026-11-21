@@ -6,13 +6,20 @@ import { hintText, mistakesText } from '../core/text';
 import { hintAsync } from '../worker/client';
 import { setTime } from './DebugTimes';
 
-export type Highlight = { cells: number[]; color: string } | null;
+export type Highlight = { cells: number[]; kind: 'mistake' | 'hint'; values?: Map<number, number> } | null;
 
 /** Levels that say something new; past this the "more" button is gone. */
 function hintLevels(h: Hint): 1 | 2 | 3 {
   if (h.kind === 'done') return 1;
   if (h.kind === 'line' || h.kind === 'probe') return 3;
   return 2;
+}
+
+/** The answer per hint cell, for the hints that give one. */
+function hintValues(h: Hint): Map<number, number> | undefined {
+  if (h.kind === 'line') return new Map(h.cells.map((c, k) => [c, h.values[k]]));
+  if (h.kind === 'probe' || h.kind === 'reveal') return new Map([[h.cell, h.value]]);
+  return undefined;
 }
 
 function hintCells(h: Hint): number[] {
@@ -40,10 +47,10 @@ export function ResultPanel(props: {
   const mounted = useRef(true);
   useEffect(() => () => { mounted.current = false; }, []);
 
-  const highlight: Highlight = mLevel === 3 ? { cells: mistakes.cells, color: 'var(--error)' }
-    : hint && hLevel >= 2 ? { cells: hintCells(hint), color: 'var(--accent)' }
+  const highlight: Highlight = mLevel === 3 ? { cells: mistakes.cells, kind: 'mistake' }
+    : hint && hLevel >= 2 ? { cells: hintCells(hint), kind: 'hint', values: hintValues(hint) }
     : null;
-  const key = highlight ? `${highlight.color}:${highlight.cells.join(',')}` : '';
+  const key = highlight ? `${highlight.kind}:${highlight.cells.join(',')}` : '';
   useEffect(() => { onHighlight(highlight); }, [key]);
   useEffect(() => () => onHighlight(null), []);
 

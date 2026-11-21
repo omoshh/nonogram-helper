@@ -117,7 +117,7 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
         ))}
       </div>
       <GridView width={rec.width} height={rec.height} cells={marks} rows={rec.rows} cols={rec.cols}
-        givens={givens} marked={highlight ? new Set(highlight.cells) : undefined} markColor={highlight?.color} onTap={tap} />
+        givens={givens} marked={highlight ? new Set(highlight.cells) : undefined} markKind={highlight?.kind} markValues={highlight?.values} onTap={tap} />
       <PhotoPick label="Photo" onFile={(f) => { setPhotoError(''); setPhoto(f); }} />
       <p class="hint">Avoid the flashlight: daylight or a lamp from the side reads best.</p>
       {/* light-grey printed cells read as sure blanks when not saved as givens */}

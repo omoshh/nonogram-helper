@@ -63,6 +63,7 @@ test('one wrong cell: mistakes one level per tap, hint refused only when tapped'
   expect(cell(container, 4).classList.contains('marked')).toBe(false);
   fireEvent.click(button('Show them on the grid'));
   expect(cell(container, 4).classList.contains('marked')).toBe(true);
+  expect(cell(container, 4).classList.contains('mistake')).toBe(true);
   expect(container.querySelectorAll('.marked')).toHaveLength(1);
 });
 
@@ -82,7 +83,10 @@ test('correct marks: hint levels appear one tap at a time', async () => {
   fireEvent.click(button('Which cells?'));
   screen.getByText(texts[1]);
   expect(screen.queryByText(texts[2])).toBeNull();
-  expect(container.querySelectorAll('.marked').length).toBe((hint as { cells: number[] }).cells.length);
+  const line = hint as Extract<typeof hint, { kind: 'line' }>;
+  expect(container.querySelectorAll('.marked.hint').length).toBe(line.cells.length);
+  line.cells.forEach((c, k) =>
+    expect(cell(container, c).classList.contains(line.values[k] === FILLED ? 'answer-filled' : 'answer-empty')).toBe(true));
   fireEvent.click(button('Why?'));
   screen.getByText(texts[2]);
   expect(screen.queryByRole('button', { name: 'Why?' })).toBeNull();
