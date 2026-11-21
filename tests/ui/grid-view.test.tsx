@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { readFileSync } from 'node:fs';
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/preact';
-import { FILLED } from '../../src/core/types';
+import { FILLED, EMPTY } from '../../src/core/types';
 import { GridView } from '../../src/ui/GridView';
 
 const W = 25;
@@ -95,4 +95,27 @@ it('a tap still waiting when the grid unmounts is applied, not lost', () => {
 it('a ring keeps the square cell (no rounded disc)', () => {
   const rule = readFileSync('src/style.css', 'utf8').match(/\.grid-cell\.ring\s*\{[^}]*\}/)![0];
   expect(rule).not.toContain('border-radius');
+});
+
+it('a mistake is drawn with an ×, not by colour only', () => {
+  const { container } = mount({ marked: new Set([3]), markKind: 'mistake' });
+  expect(at(container, 3).className).toContain('marked mistake');
+  const rule = readFileSync('src/style.css', 'utf8').match(/\.grid-cell\.marked\.mistake::after\s*\{[^}]*\}/)![0];
+  expect(rule).toContain("content: '×'");
+});
+
+it('a hint cell carries its answer: fill or dot', () => {
+  const { container } = mount({ marked: new Set([1, 2, 3]), markKind: 'hint', markValues: new Map([[1, FILLED], [2, EMPTY]]) });
+  expect(at(container, 1).className).toContain('hint answer-filled');
+  expect(at(container, 2).className).toContain('hint answer-empty');
+  expect(at(container, 3).className).not.toContain('answer-'); // a hint with no answer: outline only
+});
+
+it('every 5th line and the outside get the 2px edge', () => {
+  const { container } = mount();
+  expect(at(container, 4).classList.contains('edge-right')).toBe(true);
+  expect(at(container, W - 1).classList.contains('edge-right')).toBe(true);
+  expect(at(container, 5).classList.contains('edge-right')).toBe(false);
+  expect(at(container, 0).classList.contains('edge-left')).toBe(true);
+  expect(at(container, W).classList.contains('edge-bottom')).toBe(true);
 });

@@ -7,7 +7,11 @@ const DOUBLE_TAP_MS = 250;
 export function GridView(props: {
   width: number; height: number; cells: Uint8Array;
   rows?: number[][]; cols?: number[][];
-  marked?: Set<number>; markColor?: string;
+  marked?: Set<number>;
+  /** How marked cells are drawn: a mistake (fill and ×) or a hint (outline). */
+  markKind?: 'mistake' | 'hint';
+  /** Hint answers drawn inside the outline: FILLED or EMPTY per cell. */
+  markValues?: Map<number, number>;
   /** Cells printed filled in the puzzle: drawn apart from the user's marks. */
   givens?: Set<number>;
   onTap?: (cell: number) => void;
@@ -16,7 +20,7 @@ export function GridView(props: {
   /** Zoom in and scroll this cell to the centre. */
   focus?: number;
 }) {
-  const { width, height, cells, rows, cols, marked, markColor, givens, onTap, ringed, focus } = props;
+  const { width, height, cells, rows, cols, marked, markKind = 'mistake', markValues, givens, onTap, ringed, focus } = props;
   const [zoomed, setZoomed] = useState(focus !== undefined);
   const box = useRef<HTMLDivElement>(null);
   // A real tap (click detail >= 1) waits DOUBLE_TAP_MS so a double-tap can cancel it; detail 0 (keyboard) applies at once.
@@ -84,18 +88,19 @@ export function GridView(props: {
       if (v === FILLED) cls += ' filled';
       else if (v === EMPTY) cls += ' empty';
       if (givens?.has(i)) cls += ' given';
-      if (c % 5 === 4 && c < width - 1) cls += ' edge-right';
-      if (r % 5 === 4 && r < height - 1) cls += ' edge-bottom';
-      const isMarked = marked?.has(i);
-      if (isMarked) cls += ' marked';
+      if (c % 5 === 4 || c === width - 1) cls += ' edge-right';
+      if (r % 5 === 4 || r === height - 1) cls += ' edge-bottom';
+      if (c === 0) cls += ' edge-left';
+      if (r === 0) cls += ' edge-top';
+      if (marked?.has(i)) {
+        cls += ` marked ${markKind}`;
+        const answer = markValues?.get(i);
+        if (answer === FILLED) cls += ' answer-filled';
+        else if (answer === EMPTY) cls += ' answer-empty';
+      }
       if (ringed?.has(i)) cls += ' ring';
       items.push(
-        <div
-          key={i}
-          class={cls}
-          data-cell={i}
-          style={isMarked && markColor ? { outlineColor: markColor } : undefined}
-        />,
+        <div key={i} class={cls} data-cell={i} />,
       );
     }
   }

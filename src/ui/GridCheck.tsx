@@ -41,8 +41,11 @@ function draw(canvas: HTMLCanvasElement, s: PhotoSession, g: TableGeometry | nul
   ctx.drawImage(s.preview, 0, 0);
   if (!g) return;
   const k = s.preview.width / s.width;
+  // The found grid is the app's own mark on the photo: drawn in the hint ink, the clue area in a dashed line.
+  const hint = getComputedStyle(canvas).getPropertyValue('--hint').trim() || '#00838A';
   const seg = (a: Point, b: Point, grid: boolean) => {
-    ctx.strokeStyle = grid ? '#e11' : 'rgba(238,17,17,0.4)';
+    ctx.strokeStyle = hint;
+    ctx.setLineDash?.(grid ? [] : [4, 4]);
     ctx.beginPath(); ctx.moveTo(a.x * k, a.y * k); ctx.lineTo(b.x * k, b.y * k); ctx.stroke();
   };
   ctx.lineWidth = 2;
