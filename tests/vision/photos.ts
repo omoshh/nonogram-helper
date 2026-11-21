@@ -48,6 +48,8 @@ export const NAMES = [
   'PXL_20261121_061441349',
   'PXL_20261121_065427861',
   'PXL_20261121_074326501.MP',
+  'solved-1',
+  'solved-2',
 ];
 
 export const PHOTOS: PhotoLabel[] = NAMES.map((n) =>
