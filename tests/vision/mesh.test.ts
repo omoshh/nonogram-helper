@@ -147,7 +147,7 @@ describe('detect (synthetic, bent pages)', () => {
 const present = PHOTOS.filter((p) => existsSync(p.file));
 
 describe.skipIf(!present.length)('detect (real photos)', () => {
-  it('main journal: size, depths, rotation and grid corners match the label on at least 22 of 23', () => {
+  it('main journal: size, depths, rotation and grid corners match the label on at least 26 of 27', () => {
     const rows: string[] = [];
     let pass = 0, main = 0;
     for (const label of present) {
@@ -176,7 +176,7 @@ describe.skipIf(!present.length)('detect (real photos)', () => {
       rows.push(line);
     }
     console.log(rows.join('\n') + `\nmain journal: ${pass}/${main} pass`);
-    if (present.length === PHOTOS.length) expect(main).toBe(23);
+    if (present.length === PHOTOS.length) expect(main).toBe(27);
     expect(pass).toBeGreaterThanOrEqual(main - 1);
   }, 600_000);
 
