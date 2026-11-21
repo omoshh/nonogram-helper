@@ -98,11 +98,22 @@ describe('readMarks', () => {
     expect(r.unsure).toContain(120);
   });
 
-  it('a strong dot on a cell dark enough to be filled is unsure, never a silent dot', () => {
+  it('a strong dot on smooth grey paper (light fall-off) is a sure dot, not an override', () => {
     const { patches } = grid(0);
     const grey = patch('dot');
     for (let k = 0; k < N * N; k++) if (grey.data[k] > 100) grey.data[k] = 203; // uniform grey: fill score past the cut
     patches.splice(30, 0, grey); // among blanks, so its local paper is white
+    const r = readMarks(patches, new Set(), patches.length);
+    expect(r.cells[30]).toBe(EMPTY);
+    expect(r.unsure).not.toContain(30);
+    expect(r.overrides).toBe(0);
+  });
+
+  it('a strong dot on a hatched cell dark enough to be filled is unsure, never a silent dot', () => {
+    const { patches } = grid(0);
+    const hatched = patch('dot');
+    for (let k = 0; k < N * N; k++) if (hatched.data[k] > 100) hatched.data[k] = Math.min(255, Math.round(235 + rnd() * 50)); // light grainy pencil: uneven, not flat
+    patches.splice(30, 0, hatched);
     const r = readMarks(patches, new Set(), patches.length);
     expect(r.unsure).toContain(30);
     expect(r.overrides).toBe(1);

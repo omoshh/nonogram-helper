@@ -4,7 +4,7 @@ import type { GrayImage } from './types';
 export const MARK_PX = 24;
 
 /**
- * `overrides` = cells where a strong dot beat fill evidence (past the cut or in its doubt band); all are unsure.
+ * `overrides` = cells where a strong dot on uneven (not flat) paper beat fill evidence (past the cut or in its doubt band); all are unsure.
  * `retake` = more unsure cells than 1 % of the grid: shadow or blur, a new photo will read better.
  */
 export interface MarksResult { cells: Uint8Array; unsure: number[]; overrides: number; retake: boolean }
@@ -20,6 +20,7 @@ const MIN_SPREAD = 0.015;    // floor for the non-fill group's interquartile ran
 const FILL_K = 3.4;          // filled = fill score below non-fill median - FILL_K spreads ...
 const FILL_BAND = 0.4;       // ... unsure within +-FILL_BAND spreads of that
 const DEEP_K = 6;            // a strong dot overrides "filled" unless the cell is deeper than DEEP_K spreads
+const FLAT_SURE = 0.95;      // ... and is a sure dot when median/own is above this: flat paper dimmed by light fall-off (fills with dot > 0.34 <= 0.886, fall-off dots >= 0.964; untested: a glare-washed fill with one heavy stroke)
 const DOT_STRONG = 0.34;     // dot contrast that marks a dot even on greyish paper (shadow, smudge)
 const DOT_BOX = 5;           // px: dot contrast = darkest DOT_BOX^2 box vs the patch median ...
 const DOT_EDGE = 1;          // ... with the box at least this far from the patch edge
@@ -161,7 +162,7 @@ export function readMarks(patches: GrayImage[], givens: ReadonlySet<number>, wid
     const filled = f.fill < cut && !strong;
     const shaded = filled && (smoothDark || f.step < STEP_FILL || (f.flat > FLAT && f.dot > FLAT_DOT));
     const fillDoubt = !strong && Math.abs(f.fill - cut) < FILL_BAND * spread;
-    const override = strong && f.fill < cut + FILL_BAND * spread; // never silent: could hide a filled cell
+    const override = strong && f.fill < cut + FILL_BAND * spread && f.flat <= FLAT_SURE; // never silent: could hide a filled cell
     if (override) overrides++;
     const dot = !filled && f.dot > DOT_MIN;
     const dotDoubt = !filled && f.dot > DOT_MIN / DOT_BAND && f.dot < DOT_MIN * DOT_BAND;
