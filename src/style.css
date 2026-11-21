@@ -27,6 +27,7 @@
 
   /* lines */
   --line: 1.5px;        /* buttons, cards, fields */
+  --radius: 4px;        /* buttons only: soft, not round */
 
   /* spacing */
   --s1: 4px;
@@ -93,7 +94,7 @@ button, .button, input, select, textarea {
   font: inherit; color: inherit;
 }
 button, .button {
-  min-height: 48px; padding: 0 var(--s4); border-radius: 0;
+  min-height: 48px; padding: 0 var(--s4); border-radius: var(--radius);
   border: var(--line) solid var(--ink); background: transparent; color: var(--ink);
   display: inline-flex; align-items: center; justify-content: center;
   text-decoration: none; text-transform: lowercase; cursor: pointer; margin: var(--s1) 0;
