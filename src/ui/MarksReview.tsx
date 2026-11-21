@@ -10,7 +10,7 @@ const SET: { cell: Cell; label: string }[] = [
 const TAP_WAIT_MS = 270; // a bit over GridView's double-tap window: a tap just before "Check" lands first
 
 export function MarksReview(props: {
-  rec: PuzzleRecord; cells: Uint8Array; unsure: number[]; retake: boolean; views: string[];
+  rec: PuzzleRecord; cells: Uint8Array; unsure: number[]; views: string[];
   onDone: (marks: Uint8Array<ArrayBuffer>) => void; onCancel: () => void;
 }) {
   const { rec, unsure, views } = props;
@@ -36,7 +36,6 @@ export function MarksReview(props: {
 
   return (
     <main>
-      {props.retake && <p>Part of the page is in shadow or blurred. Cancel and take a new photo for a better read.</p>}
       <h2>{n === 1 ? '1 cell to check' : `${n} cells to check`}</h2>
       {n > 0 && (
         <>

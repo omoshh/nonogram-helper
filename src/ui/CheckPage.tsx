@@ -36,7 +36,7 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
   const [photo, setPhoto] = useState<File | null>(null);
   const [reading, setReading] = useState(false);
   const [photoError, setPhotoError] = useState('');
-  const [review, setReview] = useState<{ cells: Uint8Array; unsure: number[]; retake: boolean; views: string[] } | null>(null);
+  const [review, setReview] = useState<{ cells: Uint8Array; unsure: number[]; views: string[] } | null>(null);
   const open = useRef<{ session: number | null; urls: string[] }>({ session: null, urls: [] });
   const release = () => {
     if (open.current.session !== null) closeSession(open.current.session);
@@ -59,8 +59,13 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
     try {
       const r = await readMarksAsync(sessionId, g, rec.givens);
       setTime('marks', r.ms);
+      // A retake read can hold confident misreads (glare, deep shadow): never show it.
+      if (r.retake) {
+        setPhotoError('The marks cannot be read safely from this photo: part of the page is in shadow, glare or blur. Take a new photo.');
+        return;
+      }
       open.current.urls = r.views.map((b) => URL.createObjectURL(b));
-      setReview({ cells: r.cells, unsure: r.unsure, retake: r.retake, views: open.current.urls });
+      setReview({ cells: r.cells, unsure: r.unsure, views: open.current.urls });
     } catch (e) {
       setPhotoError(`Could not read the marks. (${e instanceof Error ? e.message : String(e)})`);
     } finally {
@@ -114,6 +119,7 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
       <GridView width={rec.width} height={rec.height} cells={marks} rows={rec.rows} cols={rec.cols}
         givens={givens} marked={highlight ? new Set(highlight.cells) : undefined} markColor={highlight?.color} onTap={tap} />
       <PhotoPick label="Photo" onFile={(f) => { setPhotoError(''); setPhoto(f); }} />
+      <p class="hint">Avoid the flashlight: daylight or a lamp from the side reads best.</p>
       {/* light-grey printed cells read as sure blanks when not saved as givens */}
       {!rec.givens.length && <p class="hint">Enter the printed cells first (Givens), or they can read as blank.</p>}
       {photoError && <p class="error" role="alert">{photoError}</p>}

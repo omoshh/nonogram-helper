@@ -123,21 +123,30 @@ test('no unsure cells: no stepper, Check enabled at once', async () => {
   expect(btn('Check').disabled).toBe(false);
 });
 
-const RETAKE = 'Part of the page is in shadow or blurred. Cancel and take a new photo for a better read.';
+const RETAKE = /The marks cannot be read safely from this photo/;
+const TIP = /Avoid the flashlight/;
 
-test('a retake read says so above the review, and the review still works', async () => {
+test('a retake read opens no review: it asks for a new photo and keeps the saved marks', async () => {
   read([5, 100, 900], true);
-  const { container } = await toReview();
-  screen.getByText(RETAKE);
-  fireEvent.click(btn('Next')); fireEvent.click(btn('Next'));
-  expect(btn('Check').disabled).toBe(false);
-  fireEvent.click(btn('Check'));
-  await waitFor(() => expect(container.querySelector('.mode-switch[aria-label="Tap sets"]')).not.toBeNull());
+  const { container } = await toGridCheck();
+  fireEvent.click(btn('Use this grid'));
+  await screen.findByText(RETAKE);
+  expect(screen.queryByRole('heading', { name: /to check$/ })).toBeNull();
+  expect(filled(container)).toBe(1); // only the given: the saved all-dot marks stay
+  expect(closeSession).toHaveBeenCalled();
+  expect(URL.createObjectURL).not.toHaveBeenCalled();
+  expect((await getPuzzle(ID))!.lastMarks).toEqual(record().lastMarks);
 });
 
-test('a normal read shows no retake line', async () => {
+test('a normal read shows no retake message', async () => {
   await toReview();
   expect(screen.queryByText(RETAKE)).toBeNull();
+});
+
+test('the check page gives a light tip next to the Photo button', async () => {
+  location.hash = `#/p/${ID}/check`;
+  render(<App />);
+  await screen.findByText(TIP);
 });
 
 test('one unsure cell reads "1 cell to check"', async () => {
