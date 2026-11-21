@@ -5,6 +5,7 @@ import { PuzzlePage } from './PuzzlePage';
 import { EditClues } from './EditClues';
 import { CheckPage } from './CheckPage';
 import { DebugTimes } from './DebugTimes';
+import { applyTheme, savedTheme, type Theme } from './theme';
 
 function useHash(): string {
   const [hash, setHash] = useState(location.hash);
@@ -19,6 +20,9 @@ function useHash(): string {
 export function App() {
   const hash = useHash();
   const [debug, setDebug] = useState(false);
+  const [theme, setTheme] = useState(savedTheme);
+  useEffect(() => applyTheme(theme, false), []);
+  const pickTheme = (t: Theme) => { applyTheme(t); setTheme(t); };
   const taps = useRef({ n: 0, last: 0 });
 
   const tapTitle = () => {
@@ -44,7 +48,14 @@ export function App() {
     <>
       <header class="app-header">
         <h1 onClick={tapTitle}>Nonogram Helper</h1>
-        {hash !== '' && hash !== '#/' && <a href="#/">List</a>}
+        <nav>
+          <div class="theme-switch" role="group" aria-label="Theme">
+            {(['light', 'dark'] as const).map((t) => (
+              <button type="button" key={t} aria-pressed={theme === t} onClick={() => pickTheme(t)}>{t}</button>
+            ))}
+          </div>
+          {hash !== '' && hash !== '#/' && <a href="#/">List</a>}
+        </nav>
       </header>
       {page}
       {debug && <DebugTimes />}

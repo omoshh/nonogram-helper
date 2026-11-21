@@ -1,32 +1,42 @@
-/* Visual design: docs "nonogram-helper: visual design" (riso print: paper, black ink, two bright inks). */
+/* Visual design v2, "soft print": round shapes, solid offset print layers, paper and ink with orange and teal. */
 
 @font-face {
-  font-family: 'IBM Plex Mono';
+  font-family: 'Martian Mono';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('./fonts/ibm-plex-mono-latin-400-normal.woff2') format('woff2');
+  src: url('./fonts/martian-mono-latin-400-normal.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'IBM Plex Mono';
+  font-family: 'Martian Mono';
   font-style: normal;
   font-weight: 600;
   font-display: swap;
-  src: url('./fonts/ibm-plex-mono-latin-600-normal.woff2') format('woff2');
+  src: url('./fonts/martian-mono-latin-600-normal.woff2') format('woff2');
 }
 
+/* Light is the default. Dark only when chosen with the toggle (data-theme on <html>), never from the phone setting. */
 :root {
   /* colour: each ink has one meaning */
-  --paper: #F4EEE2;     /* background, empty cells */
+  --paper: #F4EEE2;     /* page background */
+  --card: #FBF7EE;      /* cards, empty cells */
   --ink: #1B1B1B;       /* text, lines, filled cells */
   --ink-soft: #5A554C;  /* secondary text */
-  --mistake: #FF6C2F;   /* wrong cells */
-  --hint: #00838A;      /* hint cells */
+  --mistake: #FF6C2F;   /* wrong cells, "wrong" pill */
+  --hint: #00838A;      /* hint cells, "hint" pill, card print layer */
   --button: #FFE8A3;    /* main button */
-  --on-button: #1B1B1B; /* text and marks on --button and --mistake, in both modes */
+  --on-button: #1B1B1B; /* text on --button */
+  --on-mistake: #1B1B1B;/* text and × on --mistake */
+  --on-hint: var(--paper); /* text on --hint */
 
-  /* lines */
-  --line: 1.5px;        /* buttons, cards, fields */
+  /* shapes */
+  --border: 2px;
+  --r-card: 14px;
+  --r-field: 10px;
+  --r-pill: 999px;
+  --r-cell: 4px;
+  --layer-card: 5px 5px 0 var(--hint);  /* print layer: solid, no blur */
+  --layer-main: 3px 3px 0 var(--ink);
 
   /* spacing */
   --s1: 4px;
@@ -37,24 +47,27 @@
   --s6: 32px;
 
   /* type */
-  --font: 'IBM Plex Mono', ui-monospace, monospace;
+  --font: 'Martian Mono', ui-monospace, monospace;
+  --text-xs: 0.75rem;   /* 12px */
   --text-s: 0.8125rem;  /* 13px */
-  --text-m: 0.9375rem;  /* 15px */
-  --text-l: 1.125rem;   /* 18px */
+  --text-m: 0.875rem;   /* 14px: Martian Mono is wide */
+  --text-l: 1.0625rem;  /* 17px */
 
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #1A1A1A;
-    --ink: #F3EEE3;
-    --ink-soft: #B5AFA3;
-    --mistake: #FF7A45;
-    --hint: #2BB3B9;
-    --button: #FFE8A3;
-    --on-button: #1A1A1A;
-    color-scheme: dark;
-  }
+:root[data-theme="dark"] {
+  --paper: #1A1A1A;
+  --card: #242322;
+  --ink: #F3EEE3;
+  --ink-soft: #B5AFA3;
+  --mistake: #FF7A45;
+  --hint: #2BB3B9;
+  --button: #FFE8A3;
+  --on-button: #1A1A1A;
+  /* The spec says --ink here; light ink on orange reads at about 2.2:1, so the × and pill text stay dark (6.8:1). */
+  --on-mistake: #1A1A1A;
+  --on-hint: #1A1A1A;
+  color-scheme: dark;
 }
 
 /* ---------- base ---------- */
@@ -65,11 +78,11 @@ body {
   margin: 0;
   background: var(--paper);
   color: var(--ink);
-  font: 400 var(--text-m)/1.5 var(--font);
+  font: 400 var(--text-m)/1.55 var(--font);
 }
 main { padding: var(--s3) var(--s4) 96px; max-width: 640px; margin: 0 auto; }
 h1, h2, h3 { font-weight: 600; }
-h1 { font-size: var(--text-m); margin: 0; user-select: none; text-transform: lowercase; letter-spacing: 0.02em; }
+h1 { font-size: var(--text-m); margin: 0; user-select: none; text-transform: lowercase; }
 h2 { font-size: var(--text-l); margin: var(--s4) 0 var(--s2); }
 h3 { font-size: var(--text-m); margin: var(--s4) 0 var(--s2); }
 strong { font-weight: 600; }
@@ -77,14 +90,24 @@ small, .hint { color: var(--ink-soft); font-weight: 400; font-size: var(--text-s
 a { color: var(--ink); text-underline-offset: 3px; text-decoration-thickness: 1px; }
 img { display: block; }
 
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--hint); outline-offset: 2px; }
 
 .app-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: var(--s2) var(--s4); border-bottom: var(--line) solid var(--ink);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s2);
+  padding: var(--s2) var(--s4); border-bottom: var(--border) solid var(--ink);
   position: sticky; top: 0; background: var(--paper); z-index: 2;
 }
 .app-header a { min-height: 44px; display: inline-flex; align-items: center; padding: 0 var(--s2); }
+.app-header nav { display: flex; align-items: center; gap: var(--s2); }
+
+/* theme toggle: two small pills in one outline */
+.theme-switch {
+  display: inline-flex; padding: 2px; gap: 2px;
+  border: var(--border) solid var(--ink); border-radius: var(--r-pill);
+}
+.theme-switch button {
+  min-height: 32px; padding: 0 var(--s3); margin: 0; border: none; font-size: var(--text-xs);
+}
 
 /* ---------- buttons ---------- */
 
@@ -92,31 +115,34 @@ button, .button, input, select, textarea {
   font: inherit; color: inherit;
 }
 button, .button {
-  min-height: 48px; padding: 0 var(--s4); border-radius: 0;
-  border: var(--line) solid var(--ink); background: transparent; color: var(--ink);
-  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 48px; padding: 0 var(--s5); border-radius: var(--r-pill);
+  border: var(--border) solid var(--ink); background: transparent; color: var(--ink);
+  display: inline-flex; align-items: center; justify-content: center; text-align: center;
   text-decoration: none; text-transform: lowercase; cursor: pointer; margin: var(--s1) 0;
   -webkit-tap-highlight-color: transparent;
 }
-/* pressed: flat, ink and paper swap */
+/* pressed and chosen: ink and paper swap, flat */
 button:active:not(:disabled), .button:active,
 button[aria-pressed="true"] {
-  background: var(--ink); color: var(--paper); border-color: var(--ink);
+  background: var(--ink); color: var(--paper);
 }
 button:disabled { color: var(--ink-soft); border-color: var(--ink-soft); border-style: dashed; cursor: default; }
 
-/* main button: [ label ] on the button ink */
+/* main button: button ink with an ink print layer; pressed = pushed into the paper */
 .primary {
   width: 100%; font-weight: 600;
-  background: var(--button); color: var(--on-button); border-color: var(--ink);
+  background: var(--button); color: var(--on-button);
+  box-shadow: var(--layer-main);
+  margin-bottom: calc(var(--s1) + 3px);
 }
-.primary::before { content: '[\00a0'; }
-.primary::after { content: '\00a0]'; }
-.primary:active:not(:disabled) { background: var(--ink); color: var(--paper); }
-.primary:disabled { background: transparent; color: var(--ink-soft); }
+.primary:active:not(:disabled), .button.primary:active {
+  background: var(--button); color: var(--on-button);
+  transform: translate(3px, 3px); box-shadow: none;
+}
+.primary:disabled { background: transparent; color: var(--ink-soft); box-shadow: none; }
 
 button.link {
-  background: none; border: none; color: var(--ink); padding: 0; min-height: 44px;
+  background: none; border: none; color: var(--ink); padding: 0; min-height: 44px; border-radius: 0;
   text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px;
 }
 button.link:active { background: none; color: var(--ink-soft); }
@@ -128,66 +154,73 @@ button.link:active { background: none; color: var(--ink-soft); }
 
 input, select, textarea {
   width: 100%; min-height: 48px; padding: var(--s2) var(--s3);
-  border: var(--line) solid var(--ink); border-radius: 0; background: var(--paper);
+  border: var(--border) solid var(--ink); border-radius: var(--r-field); background: var(--card);
 }
-select { appearance: none; background-image: none; padding-right: var(--s5); }
+select { appearance: none; background-image: none; padding-right: var(--s6); }
 .field:has(> select) { position: relative; }
 .field:has(> select)::after {
-  content: '▾'; position: absolute; right: var(--s3); bottom: 12px; pointer-events: none;
+  content: '▾'; position: absolute; right: var(--s4); bottom: 12px; pointer-events: none;
 }
 textarea { min-height: 96px; font-size: var(--text-s); }
-input.invalid { border: 2px solid var(--mistake); background: var(--paper); }
+input.invalid { border-color: var(--mistake); border-width: 3px; }
 
 .field { margin: var(--s3) 0; }
 .field label { display: block; margin-bottom: var(--s1); font-weight: 600; font-size: var(--text-s); }
 .field-row { display: flex; gap: var(--s3); }
-.field-row .field { flex: 1; }
+.field-row .field { flex: 1; min-width: 0; }
 
 /* ---------- messages ---------- */
 
-/* Not by colour only: the × and the bar carry the meaning, the text stays ink. */
+/* Not by colour only: the × carries the meaning, the text stays ink. */
 .error {
-  color: var(--ink); border-left: 4px solid var(--mistake);
-  padding: var(--s1) 0 var(--s1) var(--s3);
+  color: var(--ink); border: var(--border) solid var(--mistake); border-radius: var(--r-field);
+  padding: var(--s2) var(--s3);
 }
 .error::before { content: '×\00a0'; font-weight: 600; }
-.message { padding: var(--s2) var(--s3); background: var(--paper); border: var(--line) solid var(--ink); }
+.message {
+  padding: var(--s2) var(--s3); background: var(--card);
+  border: var(--border) solid var(--ink); border-radius: var(--r-card);
+}
 
-/* ---------- cards ---------- */
+/* ---------- cards: the hint-ink print layer ---------- */
 
-.cards { list-style: none; padding: 0; margin: var(--s4) 0; display: grid; gap: var(--s2); }
+.cards { list-style: none; padding: 0; margin: var(--s4) 0 var(--s5); display: grid; gap: var(--s4); }
 .card {
   display: flex; flex-direction: column; gap: 2px; padding: var(--s3) var(--s4); min-height: 64px;
-  background: var(--paper); border: var(--line) solid var(--ink); border-radius: 0;
+  background: var(--card); border: var(--border) solid var(--ink); border-radius: var(--r-card);
+  box-shadow: var(--layer-card); margin-right: 5px;
   color: inherit; text-decoration: none;
 }
-.card:active { background: var(--ink); color: var(--paper); }
-.card:active .hint { color: var(--paper); }
+.card:active { transform: translate(5px, 5px); box-shadow: none; }
 .backup { display: flex; gap: var(--s2); flex-wrap: wrap; margin-top: var(--s5); }
-.backup > * { flex: 1; }
+.backup > * { flex: 1; padding: 0 var(--s3); }
 
 /* ---------- clue editor ---------- */
 
-.clue-line { display: flex; align-items: center; gap: var(--s2); margin: 6px 0; padding: 2px var(--s1); }
+.clue-line { display: flex; align-items: center; gap: var(--s2); margin: 6px 0; padding: 2px var(--s1); border-radius: var(--r-field); }
 .clue-line label { flex: 0 0 6.5em; color: var(--ink-soft); font-size: var(--text-s); }
 .clue-line input { flex: 1; min-width: 0; }
 /* a line to check: dashed frame and a marker, not a colour */
-.clue-line.flagged { outline: var(--line) dashed var(--ink); outline-offset: 0; }
+.clue-line.flagged { outline: var(--border) dashed var(--ink); outline-offset: 0; }
 .clue-line.flagged label { color: var(--ink); font-weight: 600; }
 .clue-line.flagged label::before { content: '?\00a0'; }
-.check-lines { border: var(--line) dashed var(--ink); padding: var(--s1) var(--s3) var(--s2); }
+.check-lines {
+  background: var(--card); border: var(--border) dashed var(--ink); border-radius: var(--r-card);
+  padding: var(--s1) var(--s3) var(--s2);
+}
 .check-lines h3 { margin-top: var(--s2); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips button { min-height: 44px; padding: 0 var(--s3); margin: 0; }
 
 .solve-bar {
   position: sticky; bottom: 0; background: var(--paper);
-  padding: var(--s2) 0; border-top: var(--line) solid var(--ink); margin-top: var(--s4);
+  padding: var(--s2) 0; border-top: var(--border) solid var(--ink); margin-top: var(--s4);
 }
 .outcome p { margin: var(--s1) 0; }
 
-/* ---------- grid ---------- */
+/* ---------- grid: no decoration here ---------- */
 
+/* Gaps come from GridView (1px, 3px after every 5th line); each cell is its own small round box. */
 .grid-scroll { overflow: auto; max-width: 100%; margin: var(--s2) 0; }
 .grid { display: grid; width: max-content; }
 .grid.tappable { touch-action: manipulation; }
@@ -195,27 +228,22 @@ input.invalid { border: 2px solid var(--mistake); background: var(--paper); }
 .grid-cell {
   position: relative;
   width: var(--cell); height: var(--cell);
-  border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink);
-  background: var(--paper);
+  border: 1px solid var(--ink); border-radius: min(var(--r-cell), calc(var(--cell) * 0.25));
+  background: var(--card);
 }
-/* every 5th line and the outside: 2px */
-.grid-cell.edge-right { border-right-width: 2px; }
-.grid-cell.edge-bottom { border-bottom-width: 2px; }
-.grid-cell.edge-left { border-left: 2px solid var(--ink); }
-.grid-cell.edge-top { border-top: 2px solid var(--ink); }
 
 /* cell states, as on paper: unknown = blank, empty = dot, filled = ink */
 .grid-cell.filled { background: var(--ink); }
-.grid-cell.given { background: var(--ink-soft); }
+.grid-cell.given { background: var(--ink-soft); border-color: var(--ink-soft); }
 .grid-cell.empty::after,
 .grid-cell.answer-empty::after {
   content: ''; position: absolute; left: 50%; top: 50%;
-  width: max(2px, calc(var(--cell) * 0.18)); height: max(2px, calc(var(--cell) * 0.18));
+  width: max(2px, calc(var(--cell) * 0.2)); height: max(2px, calc(var(--cell) * 0.2));
   transform: translate(-50%, -50%); border-radius: 50%; background: var(--ink);
 }
 
 /* a cell to look at again (marks review) */
-.grid-cell.ring { outline: 2px dashed var(--ink); outline-offset: -3px; z-index: 1; }
+.grid-cell.ring { outline: 2px dashed var(--ink); outline-offset: -4px; z-index: 1; }
 .grid-cell.ring.filled, .grid-cell.ring.given { outline-color: var(--paper); }
 
 /* mistake: mistake ink and an ×, so it does not depend on colour */
@@ -223,44 +251,60 @@ input.invalid { border: 2px solid var(--mistake); background: var(--paper); }
 .grid-cell.marked.mistake::after {
   content: '×'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   width: auto; height: auto; transform: none; border-radius: 0; background: none;
-  color: var(--on-button); font-weight: 600; font-size: max(8px, calc(var(--cell) * 0.85)); line-height: 1;
+  color: var(--on-mistake); font-weight: 600; font-size: max(8px, calc(var(--cell) * 0.75)); line-height: 1;
 }
 
-/* hint: outline, with the answer inside in the hint ink */
-.grid-cell.marked.hint { outline: 2px solid var(--hint); outline-offset: -2px; z-index: 1; }
+/* hint: 2.5px outline, with the answer inside in the hint ink (square = fill, dot = empty) */
+.grid-cell.marked.hint { outline: 2.5px solid var(--hint); outline-offset: -1.5px; z-index: 1; }
 .grid-cell.marked.hint.answer-filled::after {
-  content: ''; position: absolute; inset: max(3px, calc(var(--cell) * 0.2)); background: var(--hint);
+  content: ''; position: absolute; inset: max(3px, calc(var(--cell) * 0.22));
+  border-radius: 2px; background: var(--hint);
 }
 .grid-cell.marked.hint.answer-empty::after { background: var(--hint); }
 
-.grid-clue { font-size: 0.7rem; color: var(--ink); white-space: nowrap; line-height: 1.25; }
+.grid-clue { font-size: 0.68rem; color: var(--ink); white-space: nowrap; line-height: 1.25; }
 .col-clue { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-bottom: 2px; }
 .row-clue { display: flex; align-items: center; justify-content: flex-end; padding-right: var(--s1); height: var(--cell); }
+
+/* ---------- status pills ---------- */
+
+.pills { display: flex; flex-wrap: wrap; gap: var(--s2); margin: var(--s2) 0; }
+.pill {
+  display: inline-flex; align-items: center; min-height: 28px; padding: 0 var(--s3);
+  border-radius: var(--r-pill); font-size: var(--text-s); font-weight: 600;
+}
+.pill-mistake { background: var(--mistake); color: var(--on-mistake); }
+.pill-mistake::before { content: '×\00a0'; }
+.pill-hint { background: var(--hint); color: var(--on-hint); }
 
 /* ---------- check page ---------- */
 
 .button-row { display: flex; gap: var(--s2); flex-wrap: wrap; }
-.button-row > * { flex: 1; }
+.button-row > * { flex: 1; padding: 0 var(--s3); }
 
 .mode-switch { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .mode-switch button { flex: 1; min-width: 0; padding: 0 var(--s2); margin: 0; }
 .mode-switch span { color: var(--ink-soft); flex-basis: 100%; font-size: var(--text-s); }
-.results { display: grid; gap: var(--s2); margin: var(--s3) 0; }
-.result-block { background: var(--paper); border: var(--line) solid var(--ink); padding: var(--s1) var(--s3); }
+.results { display: grid; gap: var(--s4); margin: var(--s4) 5px var(--s4) 0; }
+.result-block {
+  background: var(--card); border: var(--border) solid var(--ink); border-radius: var(--r-card);
+  box-shadow: var(--layer-card); padding: var(--s1) var(--s3);
+}
 .result-block p { margin: var(--s2) 0; }
 .result-block button { width: 100%; }
 
-/* photo with the found grid and the 4 corner handles */
-.grid-check { position: relative; border: var(--line) solid var(--ink); }
-.grid-check canvas { display: block; width: 100%; height: auto; }
+/* photo with the found grid and the 4 corner handles (no print layer: it is a working view) */
+/* no overflow clip: the handles may stand past the photo edge */
+.grid-check { position: relative; border: var(--border) solid var(--ink); border-radius: var(--r-card); }
+.grid-check canvas { display: block; width: 100%; height: auto; border-radius: calc(var(--r-card) - var(--border)); }
 .handle {
   position: absolute; width: 44px; height: 44px; padding: 0; min-height: 0; margin: 0;
-  transform: translate(-50%, -50%); border-radius: 0; touch-action: none;
-  background: transparent; border: 3px solid var(--hint);
+  transform: translate(-50%, -50%); border-radius: 50%; touch-action: none;
+  background: transparent; border: 3px solid var(--hint); box-shadow: none;
 }
 .handle::after {
   content: ''; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px;
-  transform: translate(-50%, -50%); background: var(--hint);
+  transform: translate(-50%, -50%); border-radius: 50%; background: var(--hint);
 }
 .handle:active:not(:disabled) { background: transparent; border-color: var(--ink); }
 
