@@ -28,6 +28,8 @@ const MARK_NAMES = [
   'PXL_20261121_074326501.MP',
   'solved-1',
   'solved-2',
+  'PXL_20261121_082401618.MP',
+  'PXL_20261121_082421553.MP',
 ];
 
 export const MARK_ROWS: { photo: string; rows: string[] }[] = MARK_NAMES.map((n) =>

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { MARK_LABELS, MARK_ROWS } from './marks-labels';
 
 describe('mark labels (no photos needed)', () => {
-  it('has 19 labels', () => expect(MARK_LABELS).toHaveLength(19));
+  it('has 21 labels', () => expect(MARK_LABELS).toHaveLength(21));
 
   MARK_LABELS.forEach((l, i) => {
     it(`${MARK_ROWS[i].photo}: height rows of width chars #.-G?`, () => {
