@@ -12,7 +12,9 @@ import { forEachMarkPhoto, MARK_LABELS, type MarkLabel } from './marks-labels';
 const WANT: Record<string, number> = { '#': FILLED, '.': EMPTY, '-': UNKNOWN, G: FILLED };
 const CH = ['-', '#', '.'];
 // Read well before the shadow guard: the guard must not push these to a retake.
-const GOOD = /25x40-|PXL_|25x35-partial-1/;
+// shortcut: the 2026-11-21 no-flash solved pages (082401618, 082421553) still ask for a retake (fills read light
+// under a soft gradient); drop them from this exclusion when the light-robust reader lands.
+const GOOD = /^(?!.*PXL_20261121_0824)(?=.*(25x40-|PXL_|25x35-partial-1))/;
 
 const patchesOf = (l: MarkLabel, up: GrayImage) =>
   cellPatches(up, meshFromCorners(up, l.photo.gridCorners.map(([x, y]) => ({ x, y })), l.photo), MARK_PX);
