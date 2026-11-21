@@ -44,17 +44,16 @@
 
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #1A1A1A;
-    --ink: #F3EEE3;
-    --ink-soft: #B5AFA3;
-    --mistake: #FF7A45;
-    --hint: #2BB3B9;
-    --button: #FFE8A3;
-    --on-button: #1A1A1A;
-    color-scheme: dark;
-  }
+/* dark: only when chosen with the switch in the header (light is the default) */
+:root[data-theme="dark"] {
+  --paper: #1A1A1A;
+  --ink: #F3EEE3;
+  --ink-soft: #B5AFA3;
+  --mistake: #FF7A45;
+  --hint: #2BB3B9;
+  --button: #FFE8A3;
+  --on-button: #1A1A1A;
+  color-scheme: dark;
 }
 
 /* ---------- base ---------- */
@@ -85,6 +84,8 @@ img { display: block; }
   position: sticky; top: 0; background: var(--paper); z-index: 2;
 }
 .app-header a { min-height: 44px; display: inline-flex; align-items: center; padding: 0 var(--s2); }
+.app-header nav { display: flex; align-items: center; gap: var(--s2); }
+.theme-switch { min-height: 36px; padding: 0 var(--s2); margin: 0; font-size: var(--text-s); }
 
 /* ---------- buttons ---------- */
 

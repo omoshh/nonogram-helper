@@ -5,6 +5,7 @@ import { PuzzlePage } from './PuzzlePage';
 import { EditClues } from './EditClues';
 import { CheckPage } from './CheckPage';
 import { DebugTimes } from './DebugTimes';
+import { applyTheme, savedTheme } from './theme';
 
 function useHash(): string {
   const [hash, setHash] = useState(location.hash);
@@ -19,6 +20,13 @@ function useHash(): string {
 export function App() {
   const hash = useHash();
   const [debug, setDebug] = useState(false);
+  const [theme, setTheme] = useState(savedTheme);
+  useEffect(() => applyTheme(theme, false), []);
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    applyTheme(next);
+    setTheme(next);
+  };
   const taps = useRef({ n: 0, last: 0 });
 
   const tapTitle = () => {
@@ -44,7 +52,10 @@ export function App() {
     <>
       <header class="app-header">
         <h1 onClick={tapTitle}>Nonogram Helper</h1>
-        {hash !== '' && hash !== '#/' && <a href="#/">List</a>}
+        <nav>
+          <button type="button" class="theme-switch" aria-pressed={theme === 'dark'} onClick={toggleTheme}>Dark</button>
+          {hash !== '' && hash !== '#/' && <a href="#/">List</a>}
+        </nav>
       </header>
       {page}
       {debug && <DebugTimes />}
