@@ -126,7 +126,7 @@ function MarksEditor(props: { rec: PuzzleRecord }) {
         </p>
       )}
       <PhotoPick label="Photo" onFile={(f) => { setPhotoError(''); setPhoto(f); }} />
-      <p class="hint">Avoid the flashlight: daylight or a lamp from the side reads best.</p>
+      <p class="hint">Avoid the flashlight and a lamp from one side: even light from above reads best.</p>
       {/* light-grey printed cells read as sure blanks when not saved as givens */}
       {!rec.givens.length && <p class="hint">Enter the printed cells first (Givens), or they can read as blank.</p>}
       {photoError && <p class="error" role="alert">{photoError}</p>}

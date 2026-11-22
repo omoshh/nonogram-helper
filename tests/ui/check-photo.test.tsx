@@ -124,7 +124,7 @@ test('no unsure cells: no stepper, Check enabled at once', async () => {
 });
 
 const RETAKE = /The marks cannot be read safely from this photo/;
-const TIP = /Avoid the flashlight/;
+const TIP = /Avoid the flashlight and a lamp from one side/;
 
 test('a retake read opens no review: it asks for a new photo and keeps the saved marks', async () => {
   read([5, 100, 900], true);
