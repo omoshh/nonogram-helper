@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe } from 'vitest';
 import { rotate90 } from '../../src/vision/image';
 import type { GrayImage } from '../../src/vision/types';
@@ -13,6 +13,18 @@ export interface PhotoLabel {
   colClueDepth: number;
   rowClueDepth: number;
   gridCorners: [number, number][];
+  puzzle?: string; // id in PUZZLES (main journal only)
+}
+
+export interface PuzzleLabel {
+  source: string;
+  width: number;
+  height: number;
+  label: string; // size label as printed in the corner box, W x H, e.g. "25x35"
+  labelNote?: string; // why the printed label differs from width x height
+  rows: number[][];
+  cols: number[][];
+  givens: number[];
 }
 
 export const NAMES = [
@@ -56,6 +68,12 @@ export const NAMES = [
 
 export const PHOTOS: PhotoLabel[] = NAMES.map((n) =>
   JSON.parse(readFileSync(new URL(`../fixtures/photos/${n}.json`, import.meta.url), 'utf8')),
+);
+
+const PUZZLE_DIR = new URL('../fixtures/puzzles/', import.meta.url);
+export const PUZZLES: Record<string, PuzzleLabel> = Object.fromEntries(
+  readdirSync(PUZZLE_DIR).filter((f) => f.endsWith('.json'))
+    .map((f) => [f.slice(0, -5), JSON.parse(readFileSync(new URL(f, PUZZLE_DIR), 'utf8'))]),
 );
 
 // One describe per photo, skipped when the photo is absent (CI). img() decodes once, upright.
