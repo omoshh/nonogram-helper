@@ -59,11 +59,16 @@ describe('clue reading on the photos', () => {
       });
       compare('row', z.rows, r.rows);
       compare('col', z.cols, r.cols);
-      const read = { width: z.width, height: z.height, rows: r.rowClues, cols: r.colClues, givens: z.givens };
-      const caught = uncaught.length > 0 && (validate(read).length > 0 || solve(read, { timeLimitMs: 20000 }).status !== 'unique');
+      // judge the sure lines only: the user fixes every unsure line, so those take the true clues
+      const fixed = (got: number[][], want: number[][], axis: string) => got.map((c, i) => (unsure.has(`${axis}${i}`) ? want[i] : c));
+      const read = { width: z.width, height: z.height, rows: fixed(r.rowClues, z.rows, 'row'), cols: fixed(r.colClues, z.cols, 'col'), givens: z.givens };
+      const issues = uncaught.length ? validate(read) : [], sol = uncaught.length && !issues.length ? solve(read, { timeLimitMs: 20000 }) : null;
+      expect(sol?.timedOut ?? false).toBe(false); // a timeout proves nothing
+      const how = !uncaught.length ? '' : issues.length ? `validate ${issues[0].kind}` : sol!.status !== 'unique' ? `solve ${sol!.status}` : 'NOT CAUGHT';
+      const caught = uncaught.length > 0 && how !== 'NOT CAUGHT';
       const acc = right / countable, lab = label ? `${label.width}x${label.height}` : 'null';
       console.log(`${p.file}${p.cluesCrossed ? ' (crossed)' : ''}: countable ${countable} correct ${(acc * 100).toFixed(2)} % wrong ${wrong.length} ${wrong.join(' ')} `
-        + `samples ${S.length} unsure ${r.unsure.length} label ${lab} vs ${z.width}x${z.height}${uncaught.length ? ` sure-wrong caught: ${caught}` : ''} ${ms.toFixed(0)} ms`);
+        + `samples ${S.length} unsure ${r.unsure.length} label ${lab} vs ${z.width}x${z.height}${uncaught.length ? ` sure-wrong ${uncaught.length} caught by: ${how}` : ''} ${ms.toFixed(0)} ms`);
       if (!p.cluesCrossed) expect(acc).toBeGreaterThanOrEqual(0.99); // crossed-out clues are out of scope; safety still holds
       if (uncaught.length) expect(caught).toBe(true);
       expect([null, `${z.width}x${z.height}`]).toContain(label && lab);

@@ -37,6 +37,12 @@ describe('glyphs', () => {
     const stroke = Array.from({ length: 30 }, (_, i) => [5 + i, 33 - i, 8 + i, 36 - i]); // pencil stroke corner to corner
     expect(glyphs(cell([...stroke, [18, 12, 22, 28]]))).toBeNull(); // crossed-out 1: stroke and digit dropped as a line, centre still inky
   });
+  it('a stroke merged with one digit of two is unreadable, not the other digit alone', () => {
+    // steep stroke from the bottom edge to the top right, through the right digit only (as on the crossed photos)
+    const stroke = Array.from({ length: 22 }, (_, i) => [14 + i, Math.round(37 - 1.5 * i), 17 + i, Math.round(40 - 1.5 * i)]);
+    expect(glyphs(cell([[9, 10, 12, 30], [24, 10, 27, 30]]))).toHaveLength(2);
+    expect(glyphs(cell([[9, 10, 12, 30], [24, 10, 27, 30], ...stroke]))).toBeNull();
+  });
 });
 
 describe('nearest', () => {

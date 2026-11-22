@@ -4,15 +4,14 @@ import { adaptiveThreshold } from './binary';
 export const GLYPH_BOX = 12; // 144 values: 468 thinned samples fit in 183 KiB; 16 reads as well unthinned but only ~340 samples fit (up to 6 more wrong)
 export interface Sample { d: string; v: number[] }
 
-// Margins: the 12 clean-clue training photos, leave one puzzle out, clean sources (2026-11-22); "+n" = n more wrong cells.
-const INSET = 0.12; // share of the cell skipped on each side (grid lines); 0.09..0.17 change no read
-const ADAPT_R = 0.1; // local threshold window radius, share of the cell; 0.08 same, 0.12 +2
-const INK_OFFSET = 15; // ink is this much darker than its local mean; 12 +1, 17 +2
-const SPECK = 0.015; // components smaller than this share of the cell area are noise; 0.008 +1, 0.022 +3
+// Margins: the 12 clean-clue training photos, leave one puzzle out, clean sources, GLYPH_BOX 12 (2026-11-22); "+n" = n more wrong cells.
+const INSET = 0.12; // share of the cell skipped on each side (grid lines); 0.09..0.17 same wrong cells
+const ADAPT_R = 0.1; // local threshold window radius, share of the cell; 0.08 and 0.12 same
+const INK_OFFSET = 15; // ink is this much darker than its local mean; 12 same, 17 +2
+const SPECK = 0.015; // components smaller than this share of the cell area are noise; 0.008 +1, 0.022 +4
 const THIN = 0.12; // a component this thin that lies ALONG the edge it touches is a grid line; 0.06 +1, 0.3 same
-const TALL = 0.85; // a component spanning this share of the inner box is a grid line (digits ~0.66); 0.75 same, 0.7 +38
-const CENTRE_INK = 70; // contrast in the cell centre with no glyph = unreadable ink (crossed-out clue); 50..90 same; without it 770 sure-wrong cells on crossed photos
-const MAX_WIDTH = 0.6; // a merged glyph wider than this share of the inner box is two touching digits; 0.45 +320, 0.8 same
+const TALL = 0.85; // a component spanning this share of the inner box is a grid line (digits ~0.66); 0.75 same, 0.7 +38, 1.2 +1
+const MAX_WIDTH = 0.6; // wider than this share of the inner box: two touching digits, or (and taller too) a pencil stroke; 0.5..0.8 same, 0.45 +320
 
 interface Comp { x0: number; x1: number; y0: number; y1: number; px: number[] }
 
@@ -21,18 +20,14 @@ export function glyphs(cell: GrayImage): GrayImage[] | null {
   const a = Math.round(INSET * cell.width), b = Math.round(INSET * cell.height), w = cell.width - 2 * a, h = cell.height - 2 * b;
   const inner = { width: w, height: h, data: new Uint8Array(w * h) };
   for (let y = 0; y < h; y++) inner.data.set(cell.data.subarray((y + b) * cell.width + a, (y + b) * cell.width + a + w), y * w);
-  const groups = inkGroups(inner, cell.width).map((g) => g.im);
-  if (!groups.length) {
-    let lo = 255, hi = 0;
-    for (let y = Math.round(h / 4); y < h - h / 4; y++) for (let x = Math.round(w / 4); x < w - w / 4; x++) { const v = inner.data[y * w + x]; lo = Math.min(lo, v); hi = Math.max(hi, v); }
-    if (hi - lo >= CENTRE_INK) return null;
-  }
-  if (groups.length > 2 || groups.some((g) => g.width > MAX_WIDTH * w)) return null;
+  const groups = inkGroups(inner, cell.width, true)?.map((g) => g.im);
+  if (!groups || groups.length > 2 || groups.some((g) => g.width > MAX_WIDTH * w)) return null;
   return groups;
 }
 
-/** Ink of an image as glyph groups (components overlapping in x merged), left to right; `cellPx` = clue cell size in px. */
-export function inkGroups(im: GrayImage, cellPx: number): { x: number; y: number; im: GrayImage }[] {
+/** Ink of an image as glyph groups (components overlapping in x merged), left to right; `cellPx` = clue cell size in px.
+ *  With `strokes`, null when a component is a pencil stroke (see below). */
+export function inkGroups(im: GrayImage, cellPx: number, strokes = false): { x: number; y: number; im: GrayImage }[] | null {
   const { width: w, height: h } = im;
   const seen = new Uint8Array(w * h), comps: Comp[] = [], ink = adaptiveThreshold(im, Math.round(ADAPT_R * cellPx), INK_OFFSET);
   for (let s = 0; s < w * h; s++) {
@@ -51,7 +46,10 @@ export function inkGroups(im: GrayImage, cellPx: number): { x: number; y: number
     const edge = c.x0 === 0 || c.y0 === 0 || c.x1 === w - 1 || c.y1 === h - 1;
     // a stem that merely reaches the top/bottom edge is thin but not along it, so it stays
     const along = (bw < THIN * w && (c.x0 === 0 || c.x1 === w - 1)) || (bh < THIN * h && (c.y0 === 0 || c.y1 === h - 1));
-    if (c.px.length < SPECK * cellPx * cellPx || bh > TALL * h || bw > TALL * w || (edge && along)) continue;
+    if (c.px.length < SPECK * cellPx * cellPx || (edge && along)) continue;
+    // wider AND taller than any digit: a pencil stroke through a clue (grid lines are long in one direction only)
+    if (strokes && bw > MAX_WIDTH * w && bh > MAX_WIDTH * h) return null;
+    if (bh > TALL * h || bw > TALL * w) continue;
     comps.push(c);
   }
   comps.sort((a, b) => a.x0 - b.x0);

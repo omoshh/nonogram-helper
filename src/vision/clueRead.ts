@@ -7,11 +7,11 @@ import { glyphs, glyphVector, inkGroups, nearest, type Sample } from './digits';
 export interface CellRead { value: number | null /* null = empty */; sure: boolean }
 export interface ClueRead { rows: CellRead[][]; cols: CellRead[][]; rowClues: number[][]; colClues: number[][]; unsure: LineRef[] }
 
-// Margins: the 12 clean-clue training photos, leave one puzzle out, clean sources (2026-11-22).
-const CLUE_PX = 32; // clue cell render size; 24 adds 15 wrong cells, 40 same
+// Margins: the 12 clean-clue training photos (safety: all 31), leave one puzzle out, clean sources, GLYPH_BOX 12 (2026-11-22).
+const CLUE_PX = 32; // clue cell render size; 24 +19 wrong cells, 40 one fewer (cost: 1.6x pixels)
 const LABEL_PX = 48; // corner box px per cell; label digits are 25-37 px tall at this size, all 31 labels read
-const MAX_DIST = 3.4; // correct glyphs reach 3.01 (3.49 with the shipped thinned set); 3.0 flags 1 more line
-const MAX_RATIO = 0.9; // best / best-of-another-digit; the one clean misread is at 0.92, correct reads reach 0.97 (flagged); 0.85 flags 3+ more lines
+const MAX_DIST = 2.7; // misreads of crossed-out clues start at 2.80 (2.8 lets one through); correct glyphs reach 3.01, and 3.49 with the shipped thinned set, so some correct reads are flagged (6 lines / 9 thinned, over 12 photos)
+const MAX_RATIO = 0.9; // best / best-of-another-digit; the one clean misread is at 0.92 (0.95 lets it through), correct reads reach 0.97 (flagged); 0.85 flags 2 more lines
 
 /** Value of a cell from its glyph classes; a leading zero, a 0 or a non-digit glyph is unsure. */
 export function cellValue(digits: string[]): CellRead {
@@ -63,7 +63,7 @@ export function readClues(upright: GrayImage, g: TableGeometry, samples: Sample[
 // The label glyphs: ink groups on the text line of the tallest group in the corner box, left to right.
 function labelGlyphs(upright: GrayImage, g: TableGeometry): GrayImage[] {
   // a group taller than a cell is not text (a thumb over the corner on one photo)
-  const gs = inkGroups(cornerBox(upright, g, LABEL_PX), LABEL_PX).filter((x) => x.im.height < LABEL_PX);
+  const gs = inkGroups(cornerBox(upright, g, LABEL_PX), LABEL_PX)!.filter((x) => x.im.height < LABEL_PX);
   if (!gs.length) return [];
   const top = gs.reduce((a, b) => (b.im.height > a.im.height ? b : a)), mid = top.y + top.im.height / 2;
   return gs.filter((x) => x.y <= mid && x.y + x.im.height >= mid).map((x) => x.im);
