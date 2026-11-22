@@ -20,6 +20,7 @@ describe('glyphs', () => {
   it('edge line ink is dropped', () => {
     expect(glyphs(cell([[0, 0, 3, 40]]))).toEqual([]);
     expect(glyphs(cell([[0, 0, 3, 40], [18, 8, 22, 32]]))).toHaveLength(1);
+    expect(glyphs(cell([[0, 0, 7, 20], [18, 8, 22, 32]]))).toHaveLength(1); // short thick line stub past the inset: thin along the edge
   });
   it('L-shaped and box-frame grid ink is dropped, a centre bar survives', () => {
     const L = [[0, 0, 3, 40], [0, 0, 40, 3]], frame = [...L, [37, 0, 40, 40], [0, 37, 40, 40]], bar = [18, 8, 22, 32];
@@ -29,8 +30,13 @@ describe('glyphs', () => {
     expect(glyphs(cell([[18, 0, 22, 30]]))).toHaveLength(1);
     expect(glyphs(cell([[18, 10, 22, 40]]))).toHaveLength(1);
   });
-  it('three glyphs cannot be split', () => expect(glyphs(cell([[4, 8, 8, 32], [18, 8, 22, 32], [32, 8, 36, 32]]))).toBeNull());
-  it('a glyph too wide for one digit cannot be split', () => expect(glyphs(cell([[4, 8, 36, 32]]))).toBeNull());
+  it('three glyphs cannot be split', () => expect(glyphs(cell([[8, 8, 11, 32], [18, 8, 21, 32], [28, 8, 31, 32]]))).toBeNull());
+  it('a glyph too wide for one digit cannot be split', () => expect(glyphs(cell([[8, 10, 32, 30]]))).toBeNull());
+  it('a line through the cell is dropped, ink left in the centre with no glyph is unreadable', () => {
+    expect(glyphs(cell([[12, 0, 15, 40], [20, 12, 24, 28]]))).toHaveLength(1); // misplaced grid line + a 1
+    const stroke = Array.from({ length: 30 }, (_, i) => [5 + i, 33 - i, 8 + i, 36 - i]); // pencil stroke corner to corner
+    expect(glyphs(cell([...stroke, [18, 12, 22, 28]]))).toBeNull(); // crossed-out 1: stroke and digit dropped as a line, centre still inky
+  });
 });
 
 describe('nearest', () => {
@@ -45,8 +51,8 @@ describe('nearest', () => {
 
 describe('glyphVector', () => {
   it('is size-independent', () => {
-    const v = (w: number, h: number) => glyphVector(glyphs(cell([[10, 5, 10 + w, 5 + h]]))![0]);
-    const a = v(2, 10), b = v(4, 20);
+    const v = (w: number, h: number) => glyphVector(glyphs(cell([[10, 8, 10 + w, 8 + h]]))![0]);
+    const a = v(3, 12), b = v(6, 24);
     // same shape at 2x: only sub-pixel rounding of the sampling differs, well under one full pixel (1.0)
     expect(Math.hypot(...a.map((x, i) => x - b[i]))).toBeLessThan(0.5);
   });

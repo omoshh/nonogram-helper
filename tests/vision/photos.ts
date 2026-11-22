@@ -14,6 +14,7 @@ export interface PhotoLabel {
   rowClueDepth: number;
   gridCorners: [number, number][];
   puzzle?: string; // id in PUZZLES (main journal only)
+  cluesCrossed?: boolean; // the solver crossed out finished clues in pencil (absent = clean)
 }
 
 export interface PuzzleLabel {
