@@ -5,7 +5,9 @@ export interface Sample { d: string; v: number[] }
 
 const MIN_CONTRAST = 60; // below this (max - min) the cell holds only paper and noise
 const SPECK = 0.004; // components smaller than this share of the cell area are noise
-const THIN = 0.12; // an edge-touching component thinner than this share of the cell is a grid line
+// Synthetic-only values (like the rest here); Task 3 tunes them on real photos.
+const THIN = 0.12; // a component this thin that lies ALONG the edge it touches is a grid line
+const SPARSE = 0.35; // an edge-touching component with less ink than this share of its bbox is an L or frame of grid lines
 const MAX_WIDTH = 0.7; // a merged glyph wider than this share of the cell is two touching digits
 
 function otsu(data: Uint8Array): number {
@@ -47,7 +49,9 @@ export function glyphs(cell: GrayImage): GrayImage[] | null {
     }
     const bw = c.x1 - c.x0 + 1, bh = c.y1 - c.y0 + 1;
     const edge = c.x0 === 0 || c.y0 === 0 || c.x1 === w - 1 || c.y1 === h - 1;
-    if (c.px.length < SPECK * w * h || (edge && Math.min(bw / w, bh / h) < THIN)) continue;
+    // a stem that merely reaches the top/bottom edge is thin but not along it, so it stays
+    const along = (bw < THIN * w && (c.x0 === 0 || c.x1 === w - 1)) || (bh < THIN * h && (c.y0 === 0 || c.y1 === h - 1));
+    if (c.px.length < SPECK * w * h || (edge && (along || c.px.length < SPARSE * bw * bh))) continue;
     comps.push(c);
   }
   comps.sort((a, b) => a.x0 - b.x0);

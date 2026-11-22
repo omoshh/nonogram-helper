@@ -21,6 +21,14 @@ describe('glyphs', () => {
     expect(glyphs(cell([[0, 0, 3, 40]]))).toEqual([]);
     expect(glyphs(cell([[0, 0, 3, 40], [18, 8, 22, 32]]))).toHaveLength(1);
   });
+  it('L-shaped and box-frame grid ink is dropped, a centre bar survives', () => {
+    const L = [[0, 0, 3, 40], [0, 0, 40, 3]], frame = [...L, [37, 0, 40, 40], [0, 37, 40, 40]], bar = [18, 8, 22, 32];
+    for (const r of [L, frame]) { expect(glyphs(cell(r))).toEqual([]); expect(glyphs(cell([...r, bar]))).toHaveLength(1); }
+  });
+  it('a stem touching the top or bottom edge is a digit, not a line', () => {
+    expect(glyphs(cell([[18, 0, 22, 30]]))).toHaveLength(1);
+    expect(glyphs(cell([[18, 10, 22, 40]]))).toHaveLength(1);
+  });
   it('three glyphs cannot be split', () => expect(glyphs(cell([[4, 8, 8, 32], [18, 8, 22, 32], [32, 8, 36, 32]]))).toBeNull());
   it('a glyph too wide for one digit cannot be split', () => expect(glyphs(cell([[4, 8, 36, 32]]))).toBeNull());
 });
