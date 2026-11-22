@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cutStrip, cellPatches, cellView } from '../../src/vision/strips';
+import { cutStrip, cellPatches, cellView, clueCells, cornerBox } from '../../src/vision/strips';
 import type { TableGeometry } from '../../src/vision/mesh';
 import type { GrayImage } from '../../src/vision/types';
 import { synthTable } from '../support/synthTable';
@@ -85,5 +85,20 @@ describe('cellPatches / cellView', () => {
     expect(ps.every((p) => p.data.length === px * px)).toBe(true);
     expect(v.data.length).toBe(4 * px * px);
     expect(mean(ps[0])).toBe(mean(ps[0])); // not NaN
+  });
+});
+
+describe('clueCells / cornerBox', () => {
+  it('full px x px cells: height rows of rowClueDepth, width cols of colClueDepth', () => {
+    const { rows, cols } = clueCells(img, g, px);
+    expect(rows.length).toBe(o.height);
+    expect(cols.length).toBe(o.width);
+    expect(rows.every((r) => r.length === o.rowClueDepth)).toBe(true);
+    expect(cols.every((c) => c.length === o.colClueDepth)).toBe(true);
+    expect([...rows.flat(), ...cols.flat()].every((c) => c.width === px && c.height === px)).toBe(true);
+  });
+  it('cornerBox is rowClueDepth x colClueDepth cells', () => {
+    const b = cornerBox(img, g, px);
+    expect([b.width, b.height]).toEqual([o.rowClueDepth * px, o.colClueDepth * px]);
   });
 });

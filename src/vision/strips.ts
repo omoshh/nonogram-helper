@@ -56,3 +56,17 @@ export function cellView(upright: GrayImage, g: TableGeometry, cell: number, px:
   const c0 = g.rowClueDepth + (cell % g.width) - 0.5, r0 = g.colClueDepth + Math.floor(cell / g.width) - 0.5;
   return render(upright, g, 2 * px, 2 * px, (x, y) => [c0 + x / (2 * px) * 2, r0 + y / (2 * px) * 2]);
 }
+
+/** Full (no inset) px x px clue cells, upright: rows[i] = row i's cells left to right, cols[j] = column j's cells top to bottom. */
+export function clueCells(upright: GrayImage, g: TableGeometry, px: number): { rows: GrayImage[][]; cols: GrayImage[][] } {
+  const rows = Array.from({ length: g.height }, (_, i) => Array.from({ length: g.rowClueDepth }, (_, k) =>
+    render(upright, g, px, px, (x, y) => [k + x / px, g.colClueDepth + i + y / px])));
+  const cols = Array.from({ length: g.width }, (_, j) => Array.from({ length: g.colClueDepth }, (_, k) =>
+    render(upright, g, px, px, (x, y) => [g.rowClueDepth + j + x / px, k + y / px])));
+  return { rows, cols };
+}
+
+/** The corner area (crossings (0,0)..(rowClueDepth, colClueDepth)), rowClueDepth*pxPerCell x colClueDepth*pxPerCell. */
+export function cornerBox(upright: GrayImage, g: TableGeometry, pxPerCell: number): GrayImage {
+  return render(upright, g, g.rowClueDepth * pxPerCell, g.colClueDepth * pxPerCell, (x, y) => [x / pxPerCell, y / pxPerCell]);
+}
