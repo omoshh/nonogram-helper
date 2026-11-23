@@ -1,7 +1,7 @@
 import type { LineRef } from '../core/types';
 import type { Point } from '../vision/types';
 import type { TableGeometry, TableSize } from '../vision/mesh';
-import type { PhotoSession, DetectResult, VisionRequest, VisionResponse } from './vision.worker';
+import type { PhotoSession, DetectResult, Label, VisionRequest, VisionResponse } from './vision.worker';
 
 export type { PhotoSession };
 
@@ -58,18 +58,18 @@ function request<K extends Exclude<VisionResponse, { ok: false }>['kind']>(
 type DistributiveOmit<T, K extends keyof never> = T extends unknown ? Omit<T, K> : never;
 
 /** ms is the detect() time, not decode. */
-export async function detectPhoto(file: Blob): Promise<{ session: PhotoSession; result: DetectResult; ms: number }> {
-  const { session, result, ms } = await request<'detect'>({ kind: 'detect', file });
-  return { session, result, ms };
+export async function detectPhoto(file: Blob): Promise<{ session: PhotoSession; result: DetectResult; label: Label; ms: number }> {
+  const { session, result, label, ms } = await request<'detect'>({ kind: 'detect', file });
+  return { session, result, label, ms };
 }
 
 export async function meshFromCornersAsync(sessionId: number, gridCorners: Point[], size: TableSize): Promise<TableGeometry> {
   return (await request<'mesh'>({ kind: 'mesh', sessionId, corners: gridCorners, size })).geometry;
 }
 
-export async function rotateSession(sessionId: number, _quarterTurnsCW: 1): Promise<{ session: PhotoSession; result: DetectResult }> {
-  const { session, result } = await request<'rotate'>({ kind: 'rotate', sessionId });
-  return { session, result };
+export async function rotateSession(sessionId: number, _quarterTurnsCW: 1): Promise<{ session: PhotoSession; result: DetectResult; label: Label }> {
+  const { session, result, label } = await request<'rotate'>({ kind: 'rotate', sessionId });
+  return { session, result, label };
 }
 
 export async function stripsAsync(

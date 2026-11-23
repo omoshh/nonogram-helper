@@ -4,7 +4,7 @@ import { toGray, downscale, rotate90 } from '../vision/image';
 import { detect, meshFromCorners, type TableGeometry, type TableSize } from '../vision/mesh';
 import { cutStrip, cellPatches, cellView } from '../vision/strips';
 import { readMarks, MARK_PX } from '../vision/marks';
-import { readClues } from '../vision/clueRead';
+import { readClues, readLabel } from '../vision/clueRead';
 import type { Sample } from '../vision/digits';
 import sampleJson from '../vision/digit-samples.json';
 
@@ -12,6 +12,8 @@ const samples = sampleJson as Sample[];
 
 export interface PhotoSession { id: number; width: number; height: number; preview: ImageBitmap }
 export type DetectResult = ReturnType<typeof detect>;
+export type Label = { width: number; height: number } | null;
+const labelOf = (upright: GrayImage, r: DetectResult): Label => (r.ok ? readLabel(upright, r.geometry, samples) : null);
 
 export type VisionRequest =
   | { id: number; kind: 'detect'; file: Blob }
@@ -23,9 +25,9 @@ export type VisionRequest =
   | { id: number; kind: 'close'; sessionId: number };
 
 export type VisionResponse =
-  | { id: number; ok: true; kind: 'detect'; session: PhotoSession; result: DetectResult; ms: number }
+  | { id: number; ok: true; kind: 'detect'; session: PhotoSession; result: DetectResult; label: Label; ms: number }
   | { id: number; ok: true; kind: 'mesh'; geometry: TableGeometry }
-  | { id: number; ok: true; kind: 'rotate'; session: PhotoSession; result: DetectResult }
+  | { id: number; ok: true; kind: 'rotate'; session: PhotoSession; result: DetectResult; label: Label }
   | { id: number; ok: true; kind: 'strips'; rows: Blob[]; cols: Blob[] }
   | { id: number; ok: true; kind: 'marks'; cells: Uint8Array; unsure: number[]; retake: boolean; views: Blob[]; ms: number }
   | { id: number; ok: true; kind: 'clues'; rows: number[][]; cols: number[][]; unsure: LineRef[]; ms: number }
@@ -74,7 +76,7 @@ async function handle(req: VisionRequest): Promise<{ msg: VisionResponse; transf
       const k = (result.ok ? result.geometry.rotation : (result.rotation ?? 0)) as Turns;
       cur = { id: nextSession++, photo, k, upright: rotate90(photo, k) };
       const info = sessionInfo(cur);
-      return { msg: { id, ok: true, kind: 'detect', session: info, result, ms: result.ok ? result.ms : 0 }, transfer: [info.preview] };
+      return { msg: { id, ok: true, kind: 'detect', session: info, result, label: labelOf(cur.upright, result), ms: result.ok ? result.ms : 0 }, transfer: [info.preview] };
     }
     case 'mesh': {
       const s = session(req.sessionId);
@@ -91,7 +93,7 @@ async function handle(req: VisionRequest): Promise<{ msg: VisionResponse; transf
         ? { ...det, geometry: { ...det.geometry, rotation: s.k } }
         : { ok: false, reason: 'manual-rotation', rotation: s.k };
       const info = sessionInfo(s);
-      return { msg: { id, ok: true, kind: 'rotate', session: info, result }, transfer: [info.preview] };
+      return { msg: { id, ok: true, kind: 'rotate', session: info, result, label: labelOf(s.upright, result) }, transfer: [info.preview] };
     }
     case 'strips': {
       const s = session(req.sessionId);

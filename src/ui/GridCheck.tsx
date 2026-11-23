@@ -73,6 +73,7 @@ export function GridCheck(props: {
   const [crossed, setCrossed] = useState(false);
   const [busy, setBusy] = useState(0);
   const [error, setError] = useState('');
+  const [label, setLabel] = useState<{ width: number; height: number } | null>(null);
   const [attempt, setAttempt] = useState(0); // bumped by Try again: re-reads the same file
   const canvas = useRef<HTMLCanvasElement>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -82,8 +83,14 @@ export function GridCheck(props: {
   const active = useRef<{ id: number; dx: number; dy: number; x0: number; y0: number; c0: Point } | null>(null);
   const handedOver = useRef(false); // onConfirm passed the session on: it is no longer ours to close
 
-  const apply = (s: PhotoSession, r: { ok: boolean; geometry?: TableGeometry }, known?: Known) => {
+  // A shaky detection takes the printed size; the check is off when the size is the puzzle's.
+  const checking = !props.knownSize && !props.knownGrid;
+  const takeLabel = (r: { ok: boolean; geometry?: TableGeometry }, l: typeof label, known?: Known): Known | undefined =>
+    checking && !known && l && r.ok && r.geometry && r.geometry.confidence < 0.6 ? { ...sizeOf(r.geometry), width: l.width, height: l.height } : known;
+
+  const apply = (s: PhotoSession, r: { ok: boolean; geometry?: TableGeometry }, known?: Known, l: typeof label = null) => {
     sid.current = s.id;
+    setLabel(l);
     setSession(s);
     setCrossed(false);
     if (r.ok && r.geometry) {
@@ -99,15 +106,16 @@ export function GridCheck(props: {
 
   useEffect(() => {
     let live = true;
-    detectPhoto(props.file).then(({ session: s, result, ms }) => {
+    detectPhoto(props.file).then(({ session: s, result, label: l, ms }) => {
       setTime('detect', ms);
       if (!live) { closeSession(s.id); return; }
       const kg = props.knownGrid;
-      const known = props.knownSize ?? (kg && {
+      const known0 = props.knownSize ?? (kg && {
         width: kg.width, height: kg.height,
         ...(result.ok ? { colClueDepth: result.geometry.colClueDepth, rowClueDepth: result.geometry.rowClueDepth } : kg.fallbackDepth),
       });
-      apply(s, result as never, known);
+      const known = takeLabel(result as never, l, known0);
+      apply(s, result as never, known, l);
       if (result.ok && known) remesh(s.id, cornersOf(result.geometry), known);
     }).catch((e) => { if (live) setError(`Could not read the photo. (${why(e)})`); });
     return () => { // leaving the screen or a new file: free the worker's copy of the photo
@@ -171,7 +179,12 @@ export function GridCheck(props: {
     if (!session) return;
     seq.current++;
     setBusy((n) => n + 1);
-    try { const r = await rotateSession(session.id, 1); apply(r.session, r.result as never); } catch (e) { setError(`Could not rotate the photo. (${why(e)})`); }
+    try {
+      const r = await rotateSession(session.id, 1);
+      const z = takeLabel(r.result as never, r.label);
+      apply(r.session, r.result as never, z, r.label);
+      if (z && r.result.ok) remesh(r.session.id, cornersOf(r.result.geometry), z);
+    } catch (e) { setError(`Could not rotate the photo. (${why(e)})`); }
     finally { setBusy((n) => n - 1); }
   };
 
@@ -199,6 +212,9 @@ export function GridCheck(props: {
     <main>
       {failed && <p class="error">Could not find the puzzle in this photo. Move the 4 corners onto the grid corners.</p>}
       {!failed && geometry && geometry.confidence < 0.6 && <p class="error">Check the size and clue depths — the photo was hard to read.</p>}
+      {checking && label && geometry && !failed && (label.width !== size.width || label.height !== size.height) && (
+        <p class="error">The label says {label.width}×{label.height}; the grid has {size.width}×{size.height}. Check the size.</p>
+      )}
       {crossed && <p class="error">The corners are crossed.</p>}
       <div class="grid-check" ref={box}>
         <canvas ref={canvas} width={session.preview.width} height={session.preview.height} />

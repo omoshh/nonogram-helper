@@ -275,3 +275,45 @@ test('knownGrid with a failed detection: mesh uses fallbackDepth', async () => {
   fireEvent.click(use());
   await waitFor(() => expect(meshFromCornersAsync.mock.lastCall?.[2]).toMatchObject({ width: 20, height: 20, colClueDepth: 4, rowClueDepth: 5 }));
 });
+
+describe('size label', () => {
+  const withLabel = (g: TableGeometry, label: { width: number; height: number } | null) => ({ ...ok(g), label });
+  const MSG = 'The label says 25×30; the grid has 25×35. Check the size.';
+
+  test('a sure label that disagrees is shown', async () => {
+    detectPhoto.mockResolvedValue(withLabel(geo(0.9, 25, 35), { width: 25, height: 30 }));
+    mount();
+    await screen.findByText(MSG);
+  });
+
+  test('an agreeing or null label shows nothing', async () => {
+    detectPhoto.mockResolvedValue(withLabel(geo(0.9, 25, 35), { width: 25, height: 35 }));
+    mount();
+    await waitFor(() => expect(use().disabled).toBe(false));
+    expect(screen.queryByText(/The label says/)).toBeNull();
+    cleanup();
+    detectPhoto.mockResolvedValue(withLabel(geo(0.9, 25, 35), null));
+    mount();
+    await waitFor(() => expect(use().disabled).toBe(false));
+    expect(screen.queryByText(/The label says/)).toBeNull();
+  });
+
+  test('low confidence takes the label size', async () => {
+    const g = { ...geo(0.5, 25, 34), rowClueDepth: 3, colClueDepth: 4 };
+    detectPhoto.mockResolvedValue(withLabel(g, { width: 25, height: 35 }));
+    mount();
+    await waitFor(() => expect(meshFromCornersAsync).toHaveBeenCalled());
+    expect(meshFromCornersAsync.mock.calls[0][2]).toEqual({ width: 25, height: 35, rowClueDepth: 3, colClueDepth: 4 });
+    expect((screen.getByLabelText('Size') as HTMLSelectElement).value).toBe('25x35');
+    expect((screen.getByLabelText('Row clue depth') as HTMLInputElement).value).toBe('3');
+    expect((screen.getByLabelText('Column clue depth') as HTMLInputElement).value).toBe('4');
+  });
+
+  test('the check is off when the size is known', async () => {
+    detectPhoto.mockResolvedValue(withLabel(geo(0.9, 25, 35), { width: 25, height: 30 }));
+    mount({ knownGrid: { width: 25, height: 35, fallbackDepth: { colClueDepth: 1, rowClueDepth: 1 } } });
+    await waitFor(() => expect(use().disabled).toBe(false));
+    expect(screen.queryByText(/The label says/)).toBeNull();
+    expect((screen.getByLabelText('Size') as HTMLSelectElement).value).toBe('25x35');
+  });
+});
