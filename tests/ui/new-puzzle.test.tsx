@@ -275,10 +275,22 @@ describe('from photo', () => {
     expect(unsureOf(c2)).toEqual([1]);
   });
 
+  test('a read with no unsure lines survives a reload', async () => {
+    visionMocks.readCluesAsync.mockResolvedValue({ ...read, unsure: [] });
+    await pickAndConfirm();
+    await screen.findByLabelText('Row 2');
+    cleanup();
+    render(<App />);
+    await screen.findByLabelText('Row 2');
+    expect((screen.getByLabelText('Row 1') as HTMLInputElement).value).toBe('3');
+    expect((screen.getByLabelText('Column 2') as HTMLInputElement).value).toBe('2');
+  });
+
   test('change size drops unsure lines', async () => {
     visionMocks.readCluesAsync.mockResolvedValue(read);
     const c = await pickAndConfirm();
     await screen.findByLabelText('Row 2');
+    expect(c.querySelectorAll('.clue-line.unsure')).toHaveLength(1);
     stubConfirm(true);
     fireEvent.click(screen.getByRole('button', { name: /Change size/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Enter clues' }));

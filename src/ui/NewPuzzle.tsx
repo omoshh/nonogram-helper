@@ -116,12 +116,13 @@ export function NewPuzzle(props: { debug: boolean }) {
     } else start(blankPuzzle);
   };
 
-  const start = (p: Puzzle, unsure: LineRef[] = []) => {
+  const start = (p: Puzzle, read?: LineRef[]) => {
+    const unsure = read ?? [];
     clearDraft();
     latest.current = null;
     unsureNow.current = unsure;
     setInitUnsure(unsure);
-    if (unsure.length) { // so a reload before the first edit still restores the pre-filled clues and marks
+    if (read) { // clues came from a photo read: a reload before the first edit must keep them
       latest.current = { rows: p.rows.map(formatClueLine), cols: p.cols.map(formatClueLine), givens: [] };
       saveDraft({ ...latest.current, width: p.width, height: p.height, unsure });
     }
