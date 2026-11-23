@@ -204,6 +204,9 @@ input.invalid { border-color: var(--mistake); border-width: 3px; }
 .clue-line.flagged { outline: var(--border) dashed var(--ink); outline-offset: 0; }
 .clue-line.flagged label { color: var(--ink); font-weight: 600; }
 .clue-line.flagged label::before { content: '?\00a0'; }
+/* read from a photo but unsure: dotted frame, "~" marker; differs from the dashed "?" of flagged */
+.clue-line.unsure { outline: var(--border) dotted var(--ink); outline-offset: 0; }
+.clue-line.unsure label::before { content: '~\00a0'; }
 .check-lines {
   background: var(--card); border: var(--border) dashed var(--ink); border-radius: var(--r-card);
   padding: var(--s1) var(--s3) var(--s2);

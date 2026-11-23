@@ -27,10 +27,15 @@ export function SolveFlow(props: {
   /** Called with the raw field text whenever it changes. */
   onDraft?: (d: Draft) => void;
   strips?: { rows: string[]; cols: string[] };
+  /** Clue lines the photo reader was unsure about; they stay marked until checked. */
+  initialUnsure?: LineRef[];
+  /** Called with the remaining unsure lines whenever the list changes. */
+  onUnsure?: (lines: LineRef[]) => void;
 }) {
   const [puzzle, setPuzzle] = useState(props.initial);
   const [invalid, setInvalid] = useState(0);
   const [flagged, setFlagged] = useState<LineRef[]>([]);
+  const [unsure, setUnsure] = useState<LineRef[]>(props.initialUnsure ?? []);
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -57,8 +62,16 @@ export function SolveFlow(props: {
     }
   };
 
+  const checked = (l: LineRef) => {
+    const next = unsure.filter((u) => u.axis !== l.axis || u.index !== l.index);
+    if (next.length === unsure.length) return;
+    setUnsure(next);
+    props.onUnsure?.(next);
+  };
+
   const runSolve = async () => {
     if (solving.current || savingRef.current) return;
+    if (unsure.length > 0 && !window.confirm(`${unsure.length === 1 ? '1 clue line is' : `${unsure.length} clue lines are`} not checked. Solve anyway?`)) return;
     const solved = puzzle;
     const issues = validate(solved);
     if (issues.length > 0) {
@@ -112,11 +125,18 @@ export function SolveFlow(props: {
           onDraft={props.onDraft}
           strips={props.strips}
           flagged={flagged}
+          unsure={unsure}
+          onChecked={checked}
           onChange={(next) => { setPuzzle({ ...puzzle, ...next }); invalidate(); }}
           onInvalidChange={setInvalid}
         />
       </div>
       <div class="solve-bar">
+        {unsure.length > 0 && (
+          <p class="hint" role="status">
+            {unsure.length === 1 ? '1 clue line is' : `${unsure.length} clue lines are`} unsure — check the marked {unsure.length === 1 ? 'field' : 'fields'} against the photo.
+          </p>
+        )}
         {outcome && (
           <div class="outcome" role="status">
             {outcome.text.map((t) => <p key={t}>{t}</p>)}

@@ -15,6 +15,10 @@ type Clues = { rows: number[][]; cols: number[][]; givens: number[] };
 export function ClueEditor(props: {
   width: number; height: number; rows: number[][]; cols: number[][]; givens: number[];
   flagged: LineRef[];
+  /** Lines the photo reader was unsure about; each gets an OK button. */
+  unsure?: LineRef[];
+  /** The user edited that line's field or tapped its OK button. */
+  onChecked?: (l: LineRef) => void;
   onChange: (next: Clues) => void;
   /** Number of fields whose text is not a valid clue line. */
   onInvalidChange?: (count: number) => void;
@@ -35,7 +39,10 @@ export function ClueEditor(props: {
 
   const isFlagged = (l: LineRef) => flagged.some((f) => f.axis === l.axis && f.index === l.index);
 
+  const isUnsure = (l: LineRef) => !!props.unsure?.some((f) => f.axis === l.axis && f.index === l.index);
+
   const edit = (l: LineRef, text: string) => {
+    props.onChecked?.(l);
     const texts = l.axis === 'row' ? rowText : colText;
     const nextTexts = texts.map((t, i) => (i === l.index ? text : t));
     (l.axis === 'row' ? setRowText : setColText)(nextTexts);
@@ -59,7 +66,7 @@ export function ClueEditor(props: {
   const field = (l: LineRef, text: string) => {
     const bad = parseClueLine(text) === null;
     return (
-      <div key={fieldId(l)} class={`clue-line${isFlagged(l) ? ' flagged' : ''}`}>
+      <div key={fieldId(l)} class={`clue-line${isFlagged(l) ? ' flagged' : ''}${isUnsure(l) ? ' unsure' : ''}`}>
         <label for={fieldId(l)}>{lineName(l)}</label>
         {props.strips?.[l.axis === 'row' ? 'rows' : 'cols'][l.index] && (
           <img src={props.strips[l.axis === 'row' ? 'rows' : 'cols'][l.index]} alt="" style="max-width:100%" />
@@ -74,6 +81,9 @@ export function ClueEditor(props: {
           class={bad ? 'invalid' : undefined}
           onInput={(e) => edit(l, (e.target as HTMLInputElement).value)}
         />
+        {isUnsure(l) && (
+          <button type="button" class="secondary" aria-label={`${lineName(l)} is right`} onClick={() => props.onChecked?.(l)}>OK</button>
+        )}
       </div>
     );
   };
