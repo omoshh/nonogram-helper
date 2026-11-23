@@ -21,7 +21,7 @@ describe('clue labels', () => {
     });
 
     it(`${id} solves uniquely`, () => {
-      expect(solve(p, { timeLimitMs: 20000 }).status).toBe('unique');
+      expect(solve(p, { timeLimitMs: 20000 }).status).toBe(p.nonUnique ? 'multiple' : 'unique');
     }, 60_000);
   }
 });

@@ -14,7 +14,7 @@ import { PHOTOS, PUZZLES, type PhotoLabel } from './photos';
 const MAIN = PHOTOS.filter((p) => p.journal === 'main');
 // DETECTED=1: build the geometry with detect() like the app, not from the hand-placed corners
 const DETECTED = !!process.env.DETECTED;
-const blind = (p: PhotoLabel) => p.file.includes('/blind-');
+const blind = (p: PhotoLabel) => p.file.includes('/blind-') || p.blind === true;
 interface Loaded { up: GrayImage; g: TableGeometry; samples: Tagged[] }
 const loaded = new Map<string, Loaded>();
 let thinned: Tagged[] | undefined; // THINNED=1: the generator's thinned, rounded set (Step 7 accuracy check)

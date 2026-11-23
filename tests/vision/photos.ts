@@ -15,6 +15,7 @@ export interface PhotoLabel {
   gridCorners: [number, number][];
   puzzle?: string; // id in PUZZLES (main journal only)
   cluesCrossed?: boolean; // the solver crossed out finished clues in pencil (absent = clean)
+  blind?: boolean; // never a sample source; read with the shipped digit-samples.json
 }
 
 export interface PuzzleLabel {
@@ -23,6 +24,7 @@ export interface PuzzleLabel {
   height: number;
   label: string; // size label as printed in the corner box, W x H, e.g. "25x35"
   labelNote?: string; // why the printed label differs from width x height
+  nonUnique?: string; // why the printed clues have more than one solution (checked by eye)
   rows: number[][];
   cols: number[][];
   givens: number[];
@@ -65,6 +67,11 @@ export const NAMES = [
   'solved-2',
   'PXL_20261121_082401618.MP',
   'PXL_20261121_082421553.MP',
+  'PXL_20261121_093335656.MP',
+  'PXL_20261121_093341694.MP',
+  'PXL_20261121_093352855.MP',
+  'PXL_20261121_093402511.MP',
+  'PXL_20261121_093417419.MP',
 ];
 
 export const PHOTOS: PhotoLabel[] = NAMES.map((n) =>
