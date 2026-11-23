@@ -324,4 +324,29 @@ describe('size label', () => {
     expect(screen.queryByText(/The label says/)).toBeNull();
     expect((screen.getByLabelText('Size') as HTMLSelectElement).value).toBe('25x35');
   });
+
+  describe('after rotate', () => {
+    const rotated = (g: TableGeometry, label: { width: number; height: number } | null) => ({ session, result: { ok: true, geometry: g, ms: 5 }, label });
+    const spin = async () => {
+      mount();
+      await waitFor(() => expect(use().disabled).toBe(false));
+      meshFromCornersAsync.mockClear();
+      fireEvent.click(screen.getByRole('button', { name: 'Rotate' }));
+    };
+
+    test('low confidence takes the label size and re-meshes with it', async () => {
+      rotateSession.mockResolvedValue(rotated({ ...geo(0.5, 25, 34), rowClueDepth: 3, colClueDepth: 4 }, { width: 25, height: 35 }));
+      await spin();
+      await waitFor(() => expect(meshFromCornersAsync).toHaveBeenCalled());
+      expect(meshFromCornersAsync.mock.calls[0][0]).toBe(7);
+      expect(meshFromCornersAsync.mock.calls[0][2]).toEqual({ width: 25, height: 35, rowClueDepth: 3, colClueDepth: 4 });
+      expect((screen.getByLabelText('Size') as HTMLSelectElement).value).toBe('25x35');
+    });
+
+    test('a sure mismatching label shows the message', async () => {
+      rotateSession.mockResolvedValue(rotated(geo(0.9, 25, 35), { width: 25, height: 30 }));
+      await spin();
+      await screen.findByText('The label says 25×30; the grid has 25×35. Check the size.');
+    });
+  });
 });
