@@ -10,7 +10,7 @@ import { App } from '../../src/ui/App';
 
 const { solveAsync } = vi.hoisted(() => ({ solveAsync: vi.fn() }));
 vi.mock('../../src/worker/client', () => ({ solveAsync }));
-const visionMocks = vi.hoisted(() => ({ detectPhoto: vi.fn(), meshFromCornersAsync: vi.fn(), rotateSession: vi.fn(), stripsAsync: vi.fn(), closeSession: vi.fn() }));
+const visionMocks = vi.hoisted(() => ({ detectPhoto: vi.fn(), meshFromCornersAsync: vi.fn(), rotateSession: vi.fn(), stripsAsync: vi.fn(), readCluesAsync: vi.fn(), closeSession: vi.fn() }));
 vi.mock('../../src/worker/visionClient', () => visionMocks);
 
 const stubConfirm = (answer: boolean) => { const fn = vi.fn(() => answer); vi.stubGlobal('confirm', fn); return fn; };
@@ -178,6 +178,7 @@ describe('from photo', () => {
     vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() }));
     visionMocks.detectPhoto.mockResolvedValue({ session: photoSession, result: { ok: true, geometry, ms: 1 }, ms: 1 });
     visionMocks.meshFromCornersAsync.mockResolvedValue(geometry);
+    visionMocks.readCluesAsync.mockRejectedValue(new Error('no clues'));
     visionMocks.stripsAsync.mockResolvedValue({ rows: [blob('r1'), blob('r2')], cols: [blob('c1'), blob('c2'), blob('c3')] });
     HTMLCanvasElement.prototype.getContext = (() => ({ drawImage() {}, beginPath() {}, moveTo() {}, lineTo() {}, stroke() {} })) as never;
     Element.prototype.getBoundingClientRect = () => ({ left: 0, top: 0, width: 500, height: 400, right: 500, bottom: 400, x: 0, y: 0, toJSON() {} });
@@ -233,5 +234,55 @@ describe('from photo', () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(URL.createObjectURL).not.toHaveBeenCalled();
     expect(sessionStorage.getItem('nonogram-new-draft')).toBe('keep');
+  });
+
+  const read = { rows: [[3], [1, 1]], cols: [[1], [2], [1]], unsure: [{ axis: 'col', index: 0 }], ms: 5 };
+  const unsureOf = (c: Element) => [...c.querySelectorAll('.clue-line')].map((l, i) => (l.classList.contains('unsure') ? i : -1)).filter((i) => i >= 0);
+
+  test('a photo pre-fills the clues and marks unsure lines', async () => {
+    visionMocks.readCluesAsync.mockResolvedValue(read);
+    const c = await pickAndConfirm();
+    await screen.findByLabelText('Row 2');
+    expect((screen.getByLabelText('Row 1') as HTMLInputElement).value).toBe('3');
+    expect((screen.getByLabelText('Row 2') as HTMLInputElement).value).toBe('1 1');
+    expect((screen.getByLabelText('Column 2') as HTMLInputElement).value).toBe('2');
+    expect(screen.getByLabelText('Column 1').closest('.clue-line')!.classList.contains('unsure')).toBe(true);
+    expect(c.querySelectorAll('.clue-line.unsure')).toHaveLength(1);
+  });
+
+  test('a failed clue read falls back to empty fields', async () => {
+    const c = await pickAndConfirm();
+    await screen.findByLabelText('Row 2');
+    for (const l of ['Row 1', 'Row 2', 'Column 1', 'Column 2', 'Column 3']) expect((screen.getByLabelText(l) as HTMLInputElement).value).toBe('');
+    expect(c.querySelectorAll('.clue-line img')).toHaveLength(5);
+    expect(c.querySelector('.error')).toBeNull();
+  });
+
+  test('unsure lines survive a reload; a damaged entry is ignored', async () => {
+    visionMocks.readCluesAsync.mockResolvedValue(read);
+    await pickAndConfirm();
+    await screen.findByLabelText('Row 2');
+    cleanup();
+    const c = render(<App />).container;
+    await screen.findByLabelText('Row 2');
+    expect(c.querySelectorAll('.clue-line.unsure')).toHaveLength(1);
+    expect(screen.getByLabelText('Column 1').closest('.clue-line')!.classList.contains('unsure')).toBe(true);
+    cleanup();
+    const d = JSON.parse(sessionStorage.getItem('nonogram-new-draft')!);
+    sessionStorage.setItem('nonogram-new-draft', JSON.stringify({ ...d, unsure: [{ axis: 'diag', index: 0 }, { axis: 'row', index: 2 }, { axis: 'row', index: 1 }] }));
+    const c2 = render(<App />).container;
+    await screen.findByLabelText('Row 2');
+    expect(unsureOf(c2)).toEqual([1]);
+  });
+
+  test('change size drops unsure lines', async () => {
+    visionMocks.readCluesAsync.mockResolvedValue(read);
+    const c = await pickAndConfirm();
+    await screen.findByLabelText('Row 2');
+    stubConfirm(true);
+    fireEvent.click(screen.getByRole('button', { name: /Change size/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Enter clues' }));
+    await screen.findByLabelText('Row 1');
+    expect(c.querySelectorAll('.clue-line.unsure')).toHaveLength(0);
   });
 });

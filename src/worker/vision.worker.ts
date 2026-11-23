@@ -4,6 +4,11 @@ import { toGray, downscale, rotate90 } from '../vision/image';
 import { detect, meshFromCorners, type TableGeometry, type TableSize } from '../vision/mesh';
 import { cutStrip, cellPatches, cellView } from '../vision/strips';
 import { readMarks, MARK_PX } from '../vision/marks';
+import { readClues } from '../vision/clueRead';
+import type { Sample } from '../vision/digits';
+import sampleJson from '../vision/digit-samples.json';
+
+const samples = sampleJson as Sample[];
 
 export interface PhotoSession { id: number; width: number; height: number; preview: ImageBitmap }
 export type DetectResult = ReturnType<typeof detect>;
@@ -14,6 +19,7 @@ export type VisionRequest =
   | { id: number; kind: 'rotate'; sessionId: number }
   | { id: number; kind: 'strips'; sessionId: number; g: TableGeometry; px: number }
   | { id: number; kind: 'marks'; sessionId: number; g: TableGeometry; givens: number[] }
+  | { id: number; kind: 'clues'; sessionId: number; g: TableGeometry }
   | { id: number; kind: 'close'; sessionId: number };
 
 export type VisionResponse =
@@ -22,6 +28,7 @@ export type VisionResponse =
   | { id: number; ok: true; kind: 'rotate'; session: PhotoSession; result: DetectResult }
   | { id: number; ok: true; kind: 'strips'; rows: Blob[]; cols: Blob[] }
   | { id: number; ok: true; kind: 'marks'; cells: Uint8Array; unsure: number[]; retake: boolean; views: Blob[]; ms: number }
+  | { id: number; ok: true; kind: 'clues'; rows: number[][]; cols: number[][]; unsure: LineRef[]; ms: number }
   | { id: number; ok: true; kind: 'close' }
   | { id: number; ok: false; error: string };
 
@@ -99,6 +106,12 @@ async function handle(req: VisionRequest): Promise<{ msg: VisionResponse; transf
       const { cells, unsure, retake } = readMarks(cellPatches(s.upright, req.g, MARK_PX), new Set(req.givens), req.g.width);
       const views = await Promise.all(unsure.map((cell) => png(cellView(s.upright, req.g, cell, 48))));
       return { msg: { id, ok: true, kind: 'marks', cells, unsure, retake, views, ms: performance.now() - t0 } };
+    }
+    case 'clues': {
+      const s = session(req.sessionId);
+      const t0 = performance.now();
+      const r = readClues(s.upright, req.g, samples);
+      return { msg: { id, ok: true, kind: 'clues', rows: r.rowClues, cols: r.colClues, unsure: r.unsure, ms: performance.now() - t0 } };
     }
     case 'close':
       if (cur?.id === req.sessionId) cur = null;

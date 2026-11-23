@@ -1,3 +1,4 @@
+import type { LineRef } from '../core/types';
 import type { Point } from '../vision/types';
 import type { TableGeometry, TableSize } from '../vision/mesh';
 import type { PhotoSession, DetectResult, VisionRequest, VisionResponse } from './vision.worker';
@@ -87,6 +88,14 @@ export async function readMarksAsync(
 ): Promise<{ cells: Uint8Array; unsure: number[]; retake: boolean; views: Blob[]; ms: number }> {
   const { cells, unsure, retake, views, ms } = await request<'marks'>({ kind: 'marks', sessionId, g, givens });
   return { cells, unsure, retake, views, ms };
+}
+
+export async function readCluesAsync(
+  sessionId: number,
+  g: TableGeometry,
+): Promise<{ rows: number[][]; cols: number[][]; unsure: LineRef[]; ms: number }> {
+  const { rows, cols, unsure, ms } = await request<'clues'>({ kind: 'clues', sessionId, g });
+  return { rows, cols, unsure, ms };
 }
 
 export function closeSession(sessionId: number): void {

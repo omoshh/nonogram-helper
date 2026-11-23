@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import type { Puzzle } from '../core/types';
-import { KNOWN_SIZES, parseClueLine } from '../core/clues';
+import type { LineRef, Puzzle } from '../core/types';
+import { KNOWN_SIZES, parseClueLine, formatClueLine } from '../core/clues';
 import { putPuzzle } from '../store/db';
 import { SolveFlow } from './SolveFlow';
 import type { Draft } from './ClueEditor';
 import { PhotoPick } from './PhotoPick';
 import { GridCheck } from './GridCheck';
-import { closeSession, stripsAsync } from '../worker/visionClient';
+import { closeSession, stripsAsync, readCluesAsync } from '../worker/visionClient';
+import { setTime } from './DebugTimes';
 
 type Strips = { rows: string[]; cols: string[] };
 
@@ -36,7 +37,7 @@ function parseFixture(text: string): Puzzle | string {
 }
 
 const DRAFT_KEY = 'nonogram-new-draft';
-type SavedDraft = Draft & { width: number; height: number };
+type SavedDraft = Draft & { width: number; height: number; unsure?: LineRef[] };
 
 function loadDraft(): SavedDraft | null {
   try {
@@ -44,7 +45,12 @@ function loadDraft(): SavedDraft | null {
     const strings = (a: unknown, n: number) => Array.isArray(a) && a.length === n && a.every((x) => typeof x === 'string');
     const ok = (n: unknown) => Number.isInteger(n) && (n as number) >= 1 && (n as number) <= MAX_SIDE;
     if (d && ok(d.width) && ok(d.height) && strings(d.rows, d.height) && strings(d.cols, d.width)
-      && Array.isArray(d.givens) && d.givens.every((g: unknown) => Number.isInteger(g) && (g as number) >= 0 && (g as number) < d.width * d.height)) return d;
+      && Array.isArray(d.givens) && d.givens.every((g: unknown) => Number.isInteger(g) && (g as number) >= 0 && (g as number) < d.width * d.height)) {
+      // Damaged unsure entries are dropped one by one.
+      const lines: LineRef[] = Array.isArray(d.unsure) ? d.unsure.filter((u: LineRef) =>
+        (u?.axis === 'row' || u?.axis === 'col') && Number.isInteger(u.index) && u.index >= 0 && u.index < (u.axis === 'row' ? d.height : d.width)) : [];
+      return { ...d, unsure: lines };
+    }
   } catch { /* unavailable or damaged: start fresh */ }
   return null;
 }
@@ -69,6 +75,8 @@ export function NewPuzzle(props: { debug: boolean }) {
   const [puzzle, setPuzzle] = useState<Puzzle | null>(() => (restored ? draftPuzzle(restored) : null));
   const [editorKey, setEditorKey] = useState(0);
   const latest = useRef<Draft | null>(restored);
+  const [initUnsure, setInitUnsure] = useState<LineRef[]>(restored?.unsure ?? []);
+  const unsureNow = useRef<LineRef[]>(restored?.unsure ?? []);
 
   // Photo flow: the picked file, the cut strips (object URLs) and the vision session.
   const [photo, setPhoto] = useState<File | null>(null);
@@ -89,21 +97,34 @@ export function NewPuzzle(props: { debug: boolean }) {
   const confirmGrid = async (r: { sessionId: number; geometry: { width: number; height: number } }) => {
     sessionId.current = r.sessionId;
     setCutting(true);
-    try {
-      const s = await stripsAsync(r.sessionId, r.geometry as never, 40);
-      if (!alive.current) return; // left the screen meanwhile; the session is already closed
+    const [s, c] = await Promise.allSettled([
+      stripsAsync(r.sessionId, r.geometry as never, 40),
+      readCluesAsync(r.sessionId, r.geometry as never),
+    ]);
+    if (!alive.current) return; // left the screen meanwhile; the session is already closed
+    // No strips or no clues: the clues can still be typed.
+    if (s.status === 'fulfilled') {
       const url = (b: Blob) => { const u = URL.createObjectURL(b); urls.current.push(u); return u; };
-      setStrips({ rows: s.rows.map(url), cols: s.cols.map(url) });
-    } catch { /* no strips: the clues can still be typed */ }
-    if (!alive.current) return;
+      setStrips({ rows: s.value.rows.map(url), cols: s.value.cols.map(url) });
+    }
     setCutting(false);
     setPhoto(null);
-    start(blank(r.geometry.width, r.geometry.height));
+    const blankPuzzle = blank(r.geometry.width, r.geometry.height);
+    if (c.status === 'fulfilled') {
+      setTime('clues', c.value.ms);
+      start({ ...blankPuzzle, rows: c.value.rows, cols: c.value.cols }, c.value.unsure);
+    } else start(blankPuzzle);
   };
 
-  const start = (p: Puzzle) => {
+  const start = (p: Puzzle, unsure: LineRef[] = []) => {
     clearDraft();
     latest.current = null;
+    unsureNow.current = unsure;
+    setInitUnsure(unsure);
+    if (unsure.length) { // so a reload before the first edit still restores the pre-filled clues and marks
+      latest.current = { rows: p.rows.map(formatClueLine), cols: p.cols.map(formatClueLine), givens: [] };
+      saveDraft({ ...latest.current, width: p.width, height: p.height, unsure });
+    }
     setPuzzle(p);
     setEditorKey((k) => k + 1);
   };
@@ -183,18 +204,24 @@ export function NewPuzzle(props: { debug: boolean }) {
     clearDraft();
     dropPhoto();
     latest.current = null;
+    unsureNow.current = [];
+    setInitUnsure([]);
     setPuzzle(null);
   };
   const onDraft = (d: Draft) => {
     latest.current = d;
-    saveDraft({ ...d, width: puzzle.width, height: puzzle.height });
+    saveDraft({ ...d, width: puzzle.width, height: puzzle.height, unsure: unsureNow.current });
+  };
+  const onUnsure = (lines: LineRef[]) => {
+    unsureNow.current = lines;
+    if (latest.current) saveDraft({ ...latest.current, width: puzzle.width, height: puzzle.height, unsure: lines });
   };
 
   return (
     <main>
       <h2>New puzzle {puzzle.width} × {puzzle.height}</h2>
       <button type="button" class="link" onClick={changeSize}>Change size (clears the clues)</button>
-      <SolveFlow key={editorKey} initial={puzzle} initialDraft={restored && editorKey === 0 ? restored : undefined} onDraft={onDraft} save={save} strips={strips ?? undefined} />
+      <SolveFlow key={editorKey} initial={puzzle} initialDraft={restored && editorKey === 0 ? restored : undefined} onDraft={onDraft} initialUnsure={initUnsure} onUnsure={onUnsure} save={save} strips={strips ?? undefined} />
     </main>
   );
 }
