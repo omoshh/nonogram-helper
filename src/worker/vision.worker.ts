@@ -13,7 +13,10 @@ const samples = sampleJson as Sample[];
 export interface PhotoSession { id: number; width: number; height: number; preview: ImageBitmap }
 export type DetectResult = ReturnType<typeof detect>;
 export type Label = { width: number; height: number } | null;
-const labelOf = (upright: GrayImage, r: DetectResult): Label => (r.ok ? readLabel(upright, r.geometry, samples) : null);
+// The label check is optional: a failed read must never break detection.
+function labelOf(upright: GrayImage, r: DetectResult): Label {
+  try { return r.ok ? readLabel(upright, r.geometry, samples) : null; } catch { return null; }
+}
 
 export type VisionRequest =
   | { id: number; kind: 'detect'; file: Blob }

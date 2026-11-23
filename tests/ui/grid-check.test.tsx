@@ -309,6 +309,14 @@ describe('size label', () => {
     expect((screen.getByLabelText('Column clue depth') as HTMLInputElement).value).toBe('4');
   });
 
+  test('the message hides once the size equals the label', async () => {
+    detectPhoto.mockResolvedValue(withLabel(geo(0.9, 25, 35), { width: 25, height: 30 }));
+    mount();
+    await screen.findByText(MSG);
+    fireEvent.change(screen.getByLabelText('Size'), { target: { value: '25x30' } });
+    await waitFor(() => expect(screen.queryByText(/The label says/)).toBeNull());
+  });
+
   test('the check is off when the size is known', async () => {
     detectPhoto.mockResolvedValue(withLabel(geo(0.9, 25, 35), { width: 25, height: 30 }));
     mount({ knownGrid: { width: 25, height: 35, fallbackDepth: { colClueDepth: 1, rowClueDepth: 1 } } });
