@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { validate } from '../../src/core/validate';
 import { solve } from '../../src/core/solver';
 import { rotate90 } from '../../src/vision/image';
-import { meshFromCorners, type TableGeometry } from '../../src/vision/mesh';
+import { detect, meshFromCorners, type TableGeometry } from '../../src/vision/mesh';
 import { collectSamples, readClues, readLabel, type CellRead } from '../../src/vision/clueRead';
 import type { Sample } from '../../src/vision/digits';
 import type { GrayImage } from '../../src/vision/types';
@@ -12,6 +12,8 @@ import { thin, type Tagged } from './samples';
 import { PHOTOS, PUZZLES, type PhotoLabel } from './photos';
 
 const MAIN = PHOTOS.filter((p) => p.journal === 'main');
+// DETECTED=1: build the geometry with detect() like the app, not from the hand-placed corners
+const DETECTED = !!process.env.DETECTED;
 const blind = (p: PhotoLabel) => p.file.includes('/blind-');
 interface Loaded { up: GrayImage; g: TableGeometry; samples: Tagged[] }
 const loaded = new Map<string, Loaded>();
@@ -36,11 +38,24 @@ const samplesFor = (p: PhotoLabel): Sample[] => blind(p)
 describe('clue reading on the photos', () => {
   for (const p of MAIN) {
     it.skipIf(!existsSync(p.file))(p.file, () => {
-      const { up, g } = loaded.get(p.file)!, z = PUZZLES[p.puzzle!], S = samplesFor(p);
+      let { up, g } = loaded.get(p.file)!;
+      const z = PUZZLES[p.puzzle!], S = samplesFor(p);
+      let depthsDiffer = false;
+      if (DETECTED) { // geometry as the worker gets it: detect() on the as-taken photo, then its rotation
+        const photo = loadPhoto(p.file)!, d = detect(photo);
+        const dg = d.ok ? d.geometry : null;
+        if (!dg || dg.width !== p.width || dg.height !== p.height) {
+          console.log(`${p.file}: DETECTION MISS ${dg ? `size ${dg.width}x${dg.height} vs ${p.width}x${p.height}` : `failed (${(d as { reason: string }).reason})`}; read not judged`);
+          return;
+        }
+        up = rotate90(photo, dg.rotation); g = dg;
+        depthsDiffer = dg.rowClueDepth !== p.rowClueDepth || dg.colClueDepth !== p.colClueDepth;
+        console.log(`${p.file}: detected rotation ${dg.rotation} (fixture ${p.rotation}) depths row ${dg.rowClueDepth}/${p.rowClueDepth} col ${dg.colClueDepth}/${p.colClueDepth} confidence ${dg.confidence.toFixed(2)}`);
+      }
       const t0 = performance.now();
       const r = readClues(up, g, S);
-      const ms = performance.now() - t0;
       const label = readLabel(up, g, S);
+      const ms = performance.now() - t0;
       const unsure = new Set(r.unsure.map((l) => `${l.axis}${l.index}`));
       let countable = 0, right = 0;
       const wrong: string[] = [], uncaught: string[] = [];
@@ -69,7 +84,7 @@ describe('clue reading on the photos', () => {
       const acc = right / countable, lab = label ? `${label.width}x${label.height}` : 'null';
       console.log(`${p.file}${p.cluesCrossed ? ' (crossed)' : ''}: countable ${countable} correct ${(acc * 100).toFixed(2)} % wrong ${wrong.length} ${wrong.join(' ')} `
         + `samples ${S.length} unsure ${r.unsure.length} label ${lab} vs ${z.width}x${z.height}${uncaught.length ? ` sure-wrong ${uncaught.length} caught by: ${how}` : ''} ${ms.toFixed(0)} ms`);
-      if (!p.cluesCrossed) expect(acc).toBeGreaterThanOrEqual(0.99); // crossed-out clues are out of scope; safety still holds
+      if (!p.cluesCrossed && !depthsDiffer) expect(acc).toBeGreaterThanOrEqual(0.99); // crossed-out clues are out of scope; safety still holds
       if (uncaught.length) expect(caught).toBe(true);
       expect([null, `${z.width}x${z.height}`]).toContain(label && lab);
       expect(ms).toBeLessThan(1000);
